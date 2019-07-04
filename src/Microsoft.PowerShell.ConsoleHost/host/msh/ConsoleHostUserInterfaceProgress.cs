@@ -3,8 +3,9 @@
 
 using System;
 using System.Management.Automation;
-using Dbg = System.Management.Automation.Diagnostics;
 using System.Threading;
+
+using Dbg = System.Management.Automation.Diagnostics;
 
 namespace Microsoft.PowerShell
 {
@@ -85,7 +86,7 @@ namespace Microsoft.PowerShell
                     progPaneUpdateFlag = 1;
 
                     // The timer will be auto restarted every 'UpdateTimerThreshold' ms
-                    _progPaneUpdateTimer = new Timer( new TimerCallback(ProgressPaneUpdateTimerElapsed), null, UpdateTimerThreshold, UpdateTimerThreshold);
+                    _progPaneUpdateTimer = new Timer(new TimerCallback(ProgressPaneUpdateTimerElapsed), null, UpdateTimerThreshold, UpdateTimerThreshold);
                 }
             }
 

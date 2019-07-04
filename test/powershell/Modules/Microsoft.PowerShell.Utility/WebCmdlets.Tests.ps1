@@ -993,6 +993,28 @@ Describe "Invoke-WebRequest tests" -Tags "Feature", "RequireAdminOnWindows" {
             $result.data | Should -Match 'bar'
             $result.headers.'Content-Type' | Should -BeExactly $contentType
         }
+
+        It "Verifies Invoke-WebRequest applies -ContentType when no -Body is present" {
+            $contentType = 'application/json'
+            $uri = Get-WebListenerUrl -Test 'Get'
+
+            $response = Invoke-WebRequest -Uri $uri -Method 'GET' -ContentType $contentType
+            $result = $response.Content | ConvertFrom-Json
+
+            $result.data | Should -BeNullOrEmpty
+            $result.headers.'Content-Type' | Should -BeExactly $contentType
+        }
+
+        It "Verifies Invoke-WebRequest applies an invalid -ContentType when no -Body is present and -SkipHeaderValidation is present" {
+            $contentType = 'foo'
+            $uri = Get-WebListenerUrl -Test 'Get'
+
+            $response = Invoke-WebRequest -Uri $uri -Method 'GET' -ContentType $contentType -SkipHeaderValidation
+            $result = $response.Content | ConvertFrom-Json
+
+            $result.data | Should -BeNullOrEmpty
+            $result.headers.'Content-Type' | Should -BeExactly $contentType
+        }
     }
 
     #region charset encoding tests
@@ -1453,6 +1475,20 @@ Describe "Invoke-WebRequest tests" -Tags "Feature", "RequireAdminOnWindows" {
             $result = $response.Content | ConvertFrom-Json
 
             $result.Headers.Authorization | Should -BeExactly "Basic dGVzdHVzZXI6dGVzdHBhc3N3b3Jk"
+        }
+
+        It "Verifies Invoke-WebRequest -Authentication Basic with null username" {
+            $credential = [pscredential]::new([PSCustomObject]@{UserName = $null;Password=$token.psobject.BaseObject})
+            $params = @{
+                Uri                  = $httpsUri
+                Authentication       = "Basic"
+                Credential           = $credential
+                SkipCertificateCheck = $true
+            }
+            $Response = Invoke-WebRequest @params
+            $result = $response.Content | ConvertFrom-Json
+
+            $result.Headers.Authorization | Should -BeExactly "Basic OnRlc3RwYXNzd29yZA=="
         }
 
         It "Verifies Invoke-WebRequest -Authentication <Authentication>" -TestCases $testCases {
@@ -2374,6 +2410,26 @@ Describe "Invoke-RestMethod tests" -Tags "Feature", "RequireAdminOnWindows" {
             $result.data | Should -Match 'bar'
             $result.headers.'Content-Type' | Should -BeExactly $contentType
         }
+
+        It "Verifies Invoke-RestMethod applies -ContentType when no -Body is present" {
+            $contentType = 'application/json'
+            $uri = Get-WebListenerUrl -Test 'Get'
+
+            $result = Invoke-RestMethod -Uri $uri -Method 'GET' -ContentType $contentType
+
+            $result.data | Should -BeNullOrEmpty
+            $result.headers.'Content-Type' | Should -BeExactly $contentType
+        }
+
+        It "Verifies Invoke-RestMethod applies an invalid -ContentType when no -Body is present and -SkipHeaderValidation is present" {
+            $contentType = 'foo'
+            $uri = Get-WebListenerUrl -Test 'Get'
+
+            $result = Invoke-RestMethod -Uri $uri -Method 'GET' -ContentType $contentType -SkipHeaderValidation
+
+            $result.data | Should -BeNullOrEmpty
+            $result.headers.'Content-Type' | Should -BeExactly $contentType
+        }
     }
 
     Context "HTTPS Tests" {
@@ -2777,6 +2833,19 @@ Describe "Invoke-RestMethod tests" -Tags "Feature", "RequireAdminOnWindows" {
             $result = Invoke-RestMethod @params
 
             $result.Headers.Authorization | Should -BeExactly "Basic dGVzdHVzZXI6dGVzdHBhc3N3b3Jk"
+        }
+
+        It "Verifies Invoke-RestMethod -Authentication Basic with null username" {
+            $credential = [pscredential]::new([PSCustomObject]@{UserName = $null;Password=$token.psobject.BaseObject})
+            $params = @{
+                Uri                  = $httpsUri
+                Authentication       = "Basic"
+                Credential           = $credential
+                SkipCertificateCheck = $true
+            }
+            $Response = Invoke-RestMethod @params
+
+            $Response.Headers.Authorization | Should -BeExactly "Basic OnRlc3RwYXNzd29yZA=="
         }
 
         It "Verifies Invoke-RestMethod -Authentication <Authentication>" -TestCases $testCases {

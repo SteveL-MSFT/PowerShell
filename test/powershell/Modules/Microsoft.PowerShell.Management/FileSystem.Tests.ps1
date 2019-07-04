@@ -23,8 +23,31 @@ Describe "Basic FileSystem Provider Tests" -Tags "CI" {
             $testContent = "Some Content"
             $testContent2 = "More Content"
             $reservedNamesTests = @(
-                # other formally reserved names work with .Net Core 3.0
-                @{ deviceName = "CLOCK$" }
+                @{ deviceName = 'CON' }
+                @{ deviceName = 'PRN' }
+                @{ deviceName = 'AUX' }
+                @{ deviceName = 'CLOCK$' }
+                @{ deviceName = 'NUL' }
+                @{ deviceName = 'COM0' }
+                @{ deviceName = 'COM1' }
+                @{ deviceName = 'COM2' }
+                @{ deviceName = 'COM3' }
+                @{ deviceName = 'COM4' }
+                @{ deviceName = 'COM5' }
+                @{ deviceName = 'COM6' }
+                @{ deviceName = 'COM7' }
+                @{ deviceName = 'COM8' }
+                @{ deviceName = 'COM9' }
+                @{ deviceName = 'LPT0' }
+                @{ deviceName = 'LPT1' }
+                @{ deviceName = 'LPT2' }
+                @{ deviceName = 'LPT3' }
+                @{ deviceName = 'LPT4' }
+                @{ deviceName = 'LPT5' }
+                @{ deviceName = 'LPT6' }
+                @{ deviceName = 'LPT7' }
+                @{ deviceName = 'LPT8' }
+                @{ deviceName = 'LPT9' }
             )
         }
 
@@ -236,10 +259,11 @@ Describe "Basic FileSystem Provider Tests" -Tags "CI" {
                 $protectedPath = Join-Path ([environment]::GetFolderPath("windows")) "appcompat" "Programs"
                 $protectedPath2 = Join-Path $protectedPath "Install"
                 $newItemPath = Join-Path $protectedPath "foo"
+                $shouldSkip = -not (Test-Path $protectedPath)
             }
         }
 
-        It "Access-denied test for <cmdline>" -Skip:(-not $IsWindows) -TestCases @(
+        It "Access-denied test for <cmdline>" -Skip:(-not $IsWindows -or $shouldSkip) -TestCases @(
             # NOTE: ensure the fileNameBase parameter is unique for each test case; it is used to generate a unique error and done file name.
             # The following test does not consistently work on windows
             # @{cmdline = "Get-Item $protectedPath2 -ErrorAction Stop"; expectedError = "ItemExistsUnauthorizedAccessError,Microsoft.PowerShell.Commands.GetItemCommand"}
@@ -1380,7 +1404,7 @@ Describe "Remove-Item UnAuthorized Access" -Tags "CI", "RequireAdminOnWindows" {
         Set-Acl $protectedPath $acl
 
         runas.exe /trustlevel:0x20000 "$cmdline"
-        Wait-FileToBePresent -File $errorFile -TimeoutInSeconds 10
+        Wait-FileToBePresent -File $errorFile -TimeoutInSeconds 10 | Should -BeTrue
         Get-Content $errorFile | Should -BeExactly 'RemoveItemUnauthorizedAccessError,Microsoft.PowerShell.Commands.RemoveItemCommand'
     }
 }

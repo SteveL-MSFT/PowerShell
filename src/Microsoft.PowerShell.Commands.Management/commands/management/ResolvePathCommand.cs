@@ -2,9 +2,10 @@
 // Licensed under the MIT License.
 
 using System;
-using System.Management.Automation;
-using Dbg = System.Management.Automation;
 using System.Collections.ObjectModel;
+using System.Management.Automation;
+
+using Dbg = System.Management.Automation;
 
 namespace Microsoft.PowerShell.Commands
 {
@@ -122,7 +123,7 @@ namespace Microsoft.PowerShell.Commands
                             // Do not insert './' if result path is not relative
                             if (!adjustedPath.StartsWith(
                                     currentPath.Drive?.Root ?? currentPath.Path, StringComparison.OrdinalIgnoreCase) &&
-                                !adjustedPath.StartsWith(".", StringComparison.OrdinalIgnoreCase))
+                                !adjustedPath.StartsWith('.'))
                             {
                                 adjustedPath = SessionState.Path.Combine(".", adjustedPath);
                             }

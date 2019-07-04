@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Management.Automation;
 using System.Management.Automation.Internal;
+
 using Dbg = System.Management.Automation;
 
 namespace Microsoft.PowerShell.Commands
@@ -299,7 +300,7 @@ namespace Microsoft.PowerShell.Commands
                         continue;
 
                     case qualifierSet:
-                        int separatorIndex = pathsToParse[index].IndexOf(":", StringComparison.CurrentCulture);
+                        int separatorIndex = pathsToParse[index].IndexOf(':');
 
                         if (separatorIndex < 0)
                         {
@@ -448,7 +449,7 @@ namespace Microsoft.PowerShell.Commands
 
             if (SessionState.Path.IsProviderQualified(path))
             {
-                int index = path.IndexOf("::", StringComparison.CurrentCulture);
+                int index = path.IndexOf("::", StringComparison.Ordinal);
 
                 if (index != -1)
                 {

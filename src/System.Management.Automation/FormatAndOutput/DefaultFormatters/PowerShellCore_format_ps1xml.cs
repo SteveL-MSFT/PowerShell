@@ -342,9 +342,26 @@ namespace System.Management.Automation.Runspaces
             yield return new FormatViewDefinition("history",
                 TableControl.Create()
                     .AddHeader(Alignment.Right, width: 4)
+                    .AddHeader(Alignment.Right, label: "Duration", width: 12)
                     .AddHeader()
                     .StartRowDefinition()
                         .AddPropertyColumn("Id")
+                        .AddScriptBlockColumn(@"
+                                if ($_.Duration.TotalHours -ge 10) {
+                                    return ""{0}:{1:mm}:{1:ss}.{1:fff}"" -f [int]$_.Duration.TotalHours, $_.Duration
+                                }
+                                elseif ($_.Duration.TotalHours -ge 1) {
+                                    $formatString = ""h\:mm\:ss\.fff""
+                                }
+                                elseif ($_.Duration.TotalMinutes -ge 1) {
+                                    $formatString = ""m\:ss\.fff""
+                                } 
+                                else {
+                                    $formatString = ""s\.fff""
+                                }
+
+                                $_.Duration.ToString($formatString)
+                              ")
                         .AddPropertyColumn("CommandLine")
                     .EndRowDefinition()
                 .EndTable());
@@ -983,7 +1000,7 @@ namespace System.Management.Automation.Runspaces
                     }
                   ")
                         .AddScriptBlockColumn(@"
-                    if ($_.ConnectionInfo -is [System.Management.Automation.Runspaces.WSManConnectionInfo])
+                    if ($null -ne $_.ConnectionInfo)
                     {
                       ""Remote""
                     }

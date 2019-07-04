@@ -10,6 +10,7 @@ using System.Management.Automation;
 using System.Management.Automation.Host;
 using System.Management.Automation.Internal;
 using System.Management.Automation.Runspaces;
+
 using Dbg = System.Management.Automation.Diagnostics;
 
 namespace Microsoft.PowerShell.Commands
@@ -1815,7 +1816,7 @@ namespace Microsoft.PowerShell.Commands
                     );
                 }
                 else
-                {// if id,count adn newest parameters are present
+                {// if id,count and newest parameters are present
                     // throw an exception for invalid count values
 
                     long id = _id[0];

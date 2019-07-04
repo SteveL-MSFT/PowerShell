@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-using System.Collections.ObjectModel;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -887,7 +887,7 @@ namespace System.Management.Automation
 
                 lastWord = lastWord ?? string.Empty;
                 bool isLastWordEmpty = string.IsNullOrEmpty(lastWord);
-                bool lastCharIsStar = !isLastWordEmpty && lastWord.EndsWith("*", StringComparison.Ordinal);
+                bool lastCharIsStar = !isLastWordEmpty && lastWord.EndsWith('*');
                 bool containsGlobChars = WildcardPattern.ContainsWildcardCharacters(lastWord);
 
                 string wildWord = lastWord + "*";
@@ -1045,9 +1045,9 @@ namespace System.Management.Automation
             {
                 // These are special cases, as they represent cases where the user expects to
                 // see the full path.
-                if (lastWord.StartsWith("~", StringComparison.OrdinalIgnoreCase) ||
-                    lastWord.StartsWith("\\", StringComparison.OrdinalIgnoreCase) ||
-                    lastWord.StartsWith("/", StringComparison.OrdinalIgnoreCase))
+                if (lastWord.StartsWith('~') ||
+                    lastWord.StartsWith('\\') ||
+                    lastWord.StartsWith('/'))
                 {
                     return true;
                 }

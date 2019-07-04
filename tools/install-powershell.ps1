@@ -2,14 +2,14 @@
 # Licensed under the MIT License.
 <#
 .Synopsis
-    Install PowerShell Core on Windows, Linux or macOS.
+    Install PowerShell on Windows, Linux or macOS.
 .DESCRIPTION
-    By default, the latest PowerShell Core release package will be installed.
-    If '-Daily' is specified, then the latest PowerShell Core daily package will be installed.
+    By default, the latest PowerShell release package will be installed.
+    If '-Daily' is specified, then the latest PowerShell daily package will be installed.
 .Parameter Destination
-    The destination path to install PowerShell Core to.
+    The destination path to install PowerShell to.
 .Parameter Daily
-    Install PowerShell Core from the daily build.
+    Install PowerShell from the daily build.
     Note that the 'PackageManagement' module is required to install a daily package.
 .Parameter DoNotOverwrite
     Do not overwrite the destination folder if it already exists.
@@ -131,31 +131,31 @@ Function Remove-Destination([string] $Destination) {
 #>
 function Test-PathNotInSettings($Path) {
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        return $false
+        throw 'Argument is null'
     }
 
     # Remove ending DirectorySeparatorChar for comparison purposes
     $Path = [System.Environment]::ExpandEnvironmentVariables($Path.TrimEnd([System.IO.Path]::DirectorySeparatorChar));
 
     if (-not [System.IO.Directory]::Exists($Path)) {
-        return $false
+        throw "Path does not exist: $Path"
     }
 
     # [System.Environment]::GetEnvironmentVariable automatically expands all variables
     [System.Array] $InstalledPaths = @()
     if ([System.Environment]::OSVersion.Platform -eq "Win32NT") {
-        $InstalledPaths += @(([System.Environment]::GetEnvironmentVariable('PATH', [System.EnvironmentVariableTarget]::User)).Split([System.IO.Path]::PathSeparator))
-        $InstalledPaths += @(([System.Environment]::GetEnvironmentVariable('PATH', [System.EnvironmentVariableTarget]::Machine)).Split([System.IO.Path]::PathSeparator))
+        $InstalledPaths += @(([System.Environment]::GetEnvironmentVariable('PATH', [System.EnvironmentVariableTarget]::User)) -split ([System.IO.Path]::PathSeparator))
+        $InstalledPaths += @(([System.Environment]::GetEnvironmentVariable('PATH', [System.EnvironmentVariableTarget]::Machine)) -split ([System.IO.Path]::PathSeparator))
     } else {
-        $InstalledPaths += @(([System.Environment]::GetEnvironmentVariable('PATH'), [System.EnvironmentVariableTarget]::Process).Split([System.IO.Path]::PathSeparator))
+        $InstalledPaths += @(([System.Environment]::GetEnvironmentVariable('PATH'), [System.EnvironmentVariableTarget]::Process) -split ([System.IO.Path]::PathSeparator))
     }
 
     # Remove ending DirectorySeparatorChar in all items of array for comparison purposes
-    $InstalledPaths = $InstalledPaths.ForEach( { $_.TrimEnd([System.IO.Path]::DirectorySeparatorChar) } )
+    $InstalledPaths = $InstalledPaths | ForEach-Object { $_.TrimEnd([System.IO.Path]::DirectorySeparatorChar) }
 
     # if $InstalledPaths is in setting return false
     if ($InstalledPaths -icontains $Path) {
-        return $false
+        throw 'Already in PATH environment variable'
     }
 
     return $true
@@ -245,7 +245,7 @@ try {
 
     if ($Daily) {
         if (-not (Get-Module -Name PackageManagement -ListAvailable)) {
-            throw "PackageManagement module is required to install daily PowerShell Core."
+            throw "PackageManagement module is required to install daily PowerShell."
         }
 
         if ($architecture -ne "x64") {
@@ -370,7 +370,7 @@ try {
                 try {
                     Add-PathTToSettings -Path $Destination -Target $TargetRegistry
                 } catch {
-                    Write-Verbose -Message "Unable to save the new path in the machine wide registry."
+                    Write-Warning -Message "Unable to save the new path in the machine wide registry: $_"
                     $TargetRegistry = [System.EnvironmentVariableTarget]::User
                 }
             } else {
@@ -382,7 +382,7 @@ try {
                 try {
                     Add-PathTToSettings -Path $Destination -Target $TargetRegistry
                 } catch {
-                    Write-Verbose -Message "Unable to save the new path in the registry for the current user"
+                    Write-Warning -Message "Unable to save the new path in the registry for the current user : $_"
                 }
             }
         } else {
@@ -423,7 +423,7 @@ try {
     }
 
     if (-not $UseMSI) {
-        Write-Host "PowerShell Core has been installed at $Destination" -ForegroundColor Green
+        Write-Host "PowerShell has been installed at $Destination" -ForegroundColor Green
         if ($Destination -eq $PSHome) {
             Write-Host "Please restart pwsh" -ForegroundColor Magenta
         }

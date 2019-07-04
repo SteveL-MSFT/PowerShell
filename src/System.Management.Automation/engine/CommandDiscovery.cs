@@ -7,13 +7,15 @@ using System.Diagnostics.Tracing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Management.Automation.Host;
 using System.Management.Automation.Internal;
 using System.Management.Automation.Runspaces;
 using System.Security;
-using Dbg = System.Management.Automation.Diagnostics;
-using System.Management.Automation.Host;
+
 using Microsoft.PowerShell.Commands;
 using Microsoft.Win32;
+
+using Dbg = System.Management.Automation.Diagnostics;
 
 namespace System.Management.Automation
 {
@@ -1180,7 +1182,7 @@ namespace System.Management.Automation
                 }
             }
 
-            if (string.IsNullOrEmpty(moduleName) || string.IsNullOrEmpty(moduleCommandName) || moduleName.EndsWith(".", StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(moduleName) || string.IsNullOrEmpty(moduleCommandName) || moduleName.EndsWith('.'))
                 return null;
 
             bool etwEnabled = CommandDiscoveryEventSource.Log.IsEnabled();
@@ -1666,7 +1668,7 @@ namespace System.Management.Automation
             {
                 string path = this[index];
                 if (!string.IsNullOrEmpty(path) &&
-                    path.StartsWith(".", StringComparison.Ordinal))
+                    path.StartsWith('.'))
                 {
                     result.Add(index);
                 }

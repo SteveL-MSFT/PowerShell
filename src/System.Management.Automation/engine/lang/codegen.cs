@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 using System.Text;
+
 using Dbg = System.Management.Automation.Diagnostics;
 
 namespace System.Management.Automation.Language
@@ -28,7 +29,7 @@ namespace System.Management.Automation.Language
             foreach (char c in value)
             {
                 sb.Append(c);
-                if (SpecialCharacters.IsSingleQuote(c))
+                if (CharExtensions.IsSingleQuote(c))
                 {
                     // double-up quotes to escape them
                     sb.Append(c);
@@ -75,7 +76,7 @@ namespace System.Management.Automation.Language
             foreach (char c in value)
             {
                 sb.Append(c);
-                if (SpecialCharacters.IsCurlyBracket(c))
+                if (CharExtensions.IsCurlyBracket(c))
                 {
                     // double-up curly brackets to escape them
                     sb.Append(c);

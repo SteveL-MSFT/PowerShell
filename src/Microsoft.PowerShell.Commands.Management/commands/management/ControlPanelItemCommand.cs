@@ -1,14 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using Microsoft.Win32;
-using System;
 using System.Management.Automation;
 using System.Management.Automation.Internal;
-using System.Collections.Generic;
+
+using Microsoft.Win32;
+
 using Dbg = System.Management.Automation.Diagnostics;
 
 namespace Microsoft.PowerShell.Commands
@@ -225,7 +227,7 @@ $result
                 {
                     string canonicalName = (string)item.ExtendedProperty("System.ApplicationName");
                     canonicalName = !string.IsNullOrEmpty(canonicalName)
-                                        ? canonicalName.Substring(0, canonicalName.IndexOf("\0", StringComparison.OrdinalIgnoreCase))
+                                        ? canonicalName.Substring(0, canonicalName.IndexOf('\0'))
                                         : null;
 
                     if (canonicalName != null && canonicalName.Equals(RegionCanonicalName, StringComparison.OrdinalIgnoreCase))
@@ -450,7 +452,7 @@ $result
                     string path = item.Path;
                     string canonicalName = (string)item.ExtendedProperty("System.ApplicationName");
                     canonicalName = canonicalName != null
-                                        ? canonicalName.Substring(0, canonicalName.IndexOf("\0", StringComparison.OrdinalIgnoreCase))
+                                        ? canonicalName.Substring(0, canonicalName.IndexOf('\0'))
                                         : null;
 
                     if (canonicalName == null)
@@ -638,7 +640,7 @@ $result
                 string description = (string)item.ExtendedProperty("InfoTip");
                 string canonicalName = (string)item.ExtendedProperty("System.ApplicationName");
                 canonicalName = canonicalName != null
-                                        ? canonicalName.Substring(0, canonicalName.IndexOf("\0", StringComparison.OrdinalIgnoreCase))
+                                        ? canonicalName.Substring(0, canonicalName.IndexOf('\0'))
                                         : null;
                 int[] categories = (int[])item.ExtendedProperty("System.ControlPanel.Category");
                 string[] cateStrings = new string[categories.Length];

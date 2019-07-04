@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Management.Automation.Provider;
 using System.Text;
+
 using Dbg = System.Management.Automation;
 
 namespace System.Management.Automation
@@ -1505,7 +1506,7 @@ namespace System.Management.Automation
                     break;
                 }
 
-                int index = path.IndexOf(":", StringComparison.Ordinal);
+                int index = path.IndexOf(':');
 
                 if (index == -1)
                 {
@@ -1524,10 +1525,10 @@ namespace System.Management.Automation
                 {
                     // see if there are any path separators before the colon which would mean the
                     // colon is part of a file or folder name and not a drive: ./foo:bar vs foo:bar
-                    int separator = path.IndexOf(StringLiterals.DefaultPathSeparator, 0, index-1);
+                    int separator = path.IndexOf(StringLiterals.DefaultPathSeparator, 0, index - 1);
                     if (separator == -1)
                     {
-                        separator = path.IndexOf(StringLiterals.AlternatePathSeparator, 0, index-1);
+                        separator = path.IndexOf(StringLiterals.AlternatePathSeparator, 0, index - 1);
                     }
 
                     if (separator == -1 || index < separator)
@@ -1603,7 +1604,7 @@ namespace System.Management.Automation
                     break;
                 }
 
-                int index = path.IndexOf(":", StringComparison.Ordinal);
+                int index = path.IndexOf(':');
 
                 if (index == -1)
                 {
@@ -1862,7 +1863,7 @@ namespace System.Management.Automation
                     string normalizedRoot = _sessionState.Drive.Current.Root.Replace(
                         StringLiterals.AlternatePathSeparator, StringLiterals.DefaultPathSeparator);
 
-                    if (normalizedRoot.IndexOf(":", StringComparison.Ordinal) >= 0)
+                    if (normalizedRoot.Contains(':'))
                     {
                         string normalizedPath = path.Replace(StringLiterals.AlternatePathSeparator, StringLiterals.DefaultPathSeparator);
                         if (normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
@@ -1930,13 +1931,13 @@ namespace System.Management.Automation
 
                 string relativePath = string.Empty;
 
-                    relativePath =
-                        GenerateRelativePath(
-                            workingDriveForPath,
-                            path,
-                            escapeCurrentLocation,
-                            providerInstance,
-                            context);
+                relativePath =
+                    GenerateRelativePath(
+                        workingDriveForPath,
+                        path,
+                        escapeCurrentLocation,
+                        providerInstance,
+                        context);
 
                 return relativePath;
             }
@@ -2286,7 +2287,7 @@ namespace System.Management.Automation
                 comparePath.EndsWith("\\.", StringComparison.OrdinalIgnoreCase) ||
                 comparePath.StartsWith("..\\", StringComparison.OrdinalIgnoreCase) ||
                 comparePath.StartsWith(".\\", StringComparison.OrdinalIgnoreCase) ||
-                comparePath.StartsWith("~", StringComparison.OrdinalIgnoreCase));
+                comparePath.StartsWith('~'));
         }
 
         /// <summary>
@@ -3159,7 +3160,7 @@ namespace System.Management.Automation
 
             // Find the drive separator only if it's before a path separator
 
-            int index = path.IndexOf(":", StringComparison.Ordinal);
+            int index = path.IndexOf(':');
             if (index != -1)
             {
                 int separator = path.IndexOf(StringLiterals.DefaultPathSeparator, 0, index);

@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-using System.Collections.ObjectModel;
 using System.Collections.Generic;
-using System.Reflection;
+using System.Collections.ObjectModel;
+using System.Management.Automation.Language;
 using System.Text;
 
 namespace System.Management.Automation
@@ -173,7 +173,7 @@ namespace System.Management.Automation
             int index = 0;
             for (int i = 0; i < name.Length; i++)
             {
-                if (SpecialCharacters.IsDash(name[i]))
+                if (CharExtensions.IsDash(name[i]))
                 {
                     index = i;
                     break;
@@ -533,7 +533,8 @@ namespace System.Management.Automation
         /// </exception>
         internal override CommandMetadata CommandMetadata
         {
-            get {
+            get
+            {
                 return _cmdletMetadata ??
                        (_cmdletMetadata = CommandMetadata.Get(this.Name, this.ImplementingType, Context));
             }

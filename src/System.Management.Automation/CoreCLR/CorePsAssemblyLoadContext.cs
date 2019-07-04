@@ -148,7 +148,7 @@ namespace System.Management.Automation
         }
 
         /// <summary>
-        /// Get the namespace-qualified type names of all available .NET Core types shipped with PowerShell Core.
+        /// Get the namespace-qualified type names of all available .NET Core types shipped with PowerShell.
         /// This is used for type name auto-completion in PS engine.
         /// </summary>
         internal IEnumerable<string> AvailableDotNetTypeNames
@@ -157,7 +157,7 @@ namespace System.Management.Automation
         }
 
         /// <summary>
-        /// Get the assembly names of all available .NET Core assemblies shipped with PowerShell Core.
+        /// Get the assembly names of all available .NET Core assemblies shipped with PowerShell.
         /// This is used for type name auto-completion in PS engine.
         /// </summary>
         internal HashSet<string> AvailableDotNetAssemblyNames
@@ -190,22 +190,6 @@ namespace System.Management.Automation
 
             // Otherwise, we return null
             return null;
-        }
-
-        /// <summary>
-        /// Set the profile optimization root on the appropriate load context.
-        /// </summary>
-        internal void SetProfileOptimizationRootImpl(string directoryPath)
-        {
-            AssemblyLoadContext.Default.SetProfileOptimizationRoot(directoryPath);
-        }
-
-        /// <summary>
-        /// Start the profile optimization on the appropriate load context.
-        /// </summary>
-        internal void StartProfileOptimizationImpl(string profile)
-        {
-            AssemblyLoadContext.Default.StartProfileOptimization(profile);
         }
 
         #endregion Internal_Methods
@@ -270,7 +254,7 @@ namespace System.Management.Automation
                     // Try loading from GAC
                     if (!TryFindInGAC(assemblyName, out asmFilePath))
                     {
-                         return null;
+                        return null;
                     }
 #else
                     return null;
