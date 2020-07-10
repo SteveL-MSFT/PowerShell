@@ -1141,7 +1141,7 @@ namespace System.Management.Automation
                     int position = PathContainsSubstring(result.ToString(), subPathToAdd); // searching in effective 'result' value ensures that possible duplicates in pathsToAdd are handled correctly
                     if (position == -1) // subPathToAdd not found - add it
                     {
-                        if (insertPosition == -1) // append subPathToAdd to the end
+                        if (insertPosition == -1 || insertPosition > basePath.Length) // append subPathToAdd to the end
                         {
                             bool endsWithPathSeparator = false;
                             if (result.Length > 0) endsWithPathSeparator = (result[result.Length - 1] == Path.PathSeparator);
@@ -1211,9 +1211,21 @@ namespace System.Management.Automation
                 // sharedModulePath
                 // systemModulePath
                 currentProcessModulePath = AddToPath(currentProcessModulePath, personalModulePathToUse, 0);
-                int insertIndex = PathContainsSubstring(currentProcessModulePath, personalModulePathToUse) + personalModulePathToUse.Length + 1;
+                int insertIndex = currentProcessModulePath.IndexOf(Path.PathSeparator, PathContainsSubstring(currentProcessModulePath, personalModulePathToUse));
+                if (insertIndex != -1)
+                {
+                    // advance past the path separator
+                    insertIndex++;
+                }
+
                 currentProcessModulePath = AddToPath(currentProcessModulePath, sharedModulePath, insertIndex);
-                insertIndex = PathContainsSubstring(currentProcessModulePath, sharedModulePath) + sharedModulePath.Length + 1;
+                insertIndex = currentProcessModulePath.IndexOf(Path.PathSeparator, PathContainsSubstring(currentProcessModulePath, sharedModulePath));
+                if (insertIndex != -1)
+                {
+                    // advance past the path separator
+                    insertIndex++;
+                }
+
                 currentProcessModulePath = AddToPath(currentProcessModulePath, systemModulePathToUse, insertIndex);
             }
 
