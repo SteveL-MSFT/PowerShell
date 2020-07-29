@@ -2339,6 +2339,11 @@ namespace System.Management.Automation
             return GetArrayType(types);
         }
 
+        object ICustomAstVisitor2.VisitCallNativeStatement(CallNativeStatementAst callNativeAst)
+        {
+            return TypeInferenceContext.EmptyPSTypeNameArray;
+        }
+
         private static CommandBaseAst GetPreviousPipelineCommand(CommandAst commandAst)
         {
             var pipe = (PipelineAst)commandAst.Parent;

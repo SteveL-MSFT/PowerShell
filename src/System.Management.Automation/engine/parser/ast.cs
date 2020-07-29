@@ -7571,7 +7571,7 @@ namespace System.Management.Automation.Language
         }
 
         /// <summary>
-        /// The scriptblockexpression that has a keyword applied to it. This property is nerver null.
+        /// The scriptblockexpression that has a keyword applied to it. This property is never null.
         /// </summary>
         public StatementBlockAst Body { get; private set; }
 
@@ -7603,6 +7603,55 @@ namespace System.Management.Automation.Language
                 return visitor.CheckForPostAction(this, AstVisitAction.Continue);
             if (action == AstVisitAction.Continue)
                 action = Body.InternalVisit(visitor);
+            return visitor.CheckForPostAction(this, action);
+        }
+
+        #endregion Visitors
+    }
+
+    /// <summary>
+    /// The ast that represents calling a native pipeline w/o any PowerShell processing
+    /// </summary>
+    public class CallNativeStatementAst : StatementAst
+    {
+        /// <summary>
+        /// Construct a call native statement.
+        /// </summary>
+        /// <param name="extent"></param>
+        /// <param name="command">Command line to execute by system shell</param>
+        public CallNativeStatementAst(IScriptExtent extent, StringConstantExpressionAst command)
+            : base(extent)
+        {
+            this.Command = command;
+        }
+
+        internal StringConstantExpressionAst Command { get; private set; }
+
+        /// <summary>
+        /// Copy the BlockStatementAst instance.
+        /// </summary>
+        public override Ast Copy()
+        {
+            return new CallNativeStatementAst(this.Extent, this.Command);
+        }
+
+        #region Visitors
+
+        internal override object Accept(ICustomAstVisitor visitor)
+        {
+            return (visitor as ICustomAstVisitor2)?.VisitCallNativeStatement(this);
+        }
+
+        internal override AstVisitAction InternalVisit(AstVisitor visitor)
+        {
+            AstVisitAction action = AstVisitAction.Continue;
+
+            // Can only visit new AST type if using AstVisitor2
+            if (visitor is AstVisitor2 visitor2)
+            {
+                action = visitor2.VisitCallNativeStatement(this);
+            }
+
             return visitor.CheckForPostAction(this, action);
         }
 

@@ -588,6 +588,9 @@ namespace System.Management.Automation.Language
         /// <summary>The 'default' keyword</summary>
         Default = 169,
 
+        /// <summary>The '--%' keyword</summary>
+        CallNative = 170,
+
         #endregion Keywords
     }
 
@@ -948,6 +951,7 @@ namespace System.Management.Automation.Language
             /*               Hidden */ TokenFlags.Keyword,
             /*                 Base */ TokenFlags.Keyword,
             /*              Default */ TokenFlags.Keyword,
+            /*           CallNative */ TokenFlags.Keyword | TokenFlags.StatementDoesntSupportAttributes,
 
             #endregion Flags for keywords
         };
@@ -1147,6 +1151,7 @@ namespace System.Management.Automation.Language
             /*               Hidden */ "hidden",
             /*                 Base */ "base",
             /*              Default */ "default",
+            /*           CallNative */ "exec",
 
             #endregion Text for keywords
         };
@@ -1154,9 +1159,9 @@ namespace System.Management.Automation.Language
 #if DEBUG
         static TokenTraits()
         {
-            Diagnostics.Assert(s_staticTokenFlags.Length == ((int)TokenKind.Default + 1),
+            Diagnostics.Assert(s_staticTokenFlags.Length == ((int)TokenKind.CallNative + 1),
                                "Table size out of sync with enum - _staticTokenFlags");
-            Diagnostics.Assert(s_tokenText.Length == ((int)TokenKind.Default + 1),
+            Diagnostics.Assert(s_tokenText.Length == ((int)TokenKind.CallNative + 1),
                                "Table size out of sync with enum - _tokenText");
             // Some random assertions to make sure the enum and the traits are in sync
             Diagnostics.Assert(GetTraits(TokenKind.Begin) == (TokenFlags.Keyword | TokenFlags.ScriptBlockBlockName),

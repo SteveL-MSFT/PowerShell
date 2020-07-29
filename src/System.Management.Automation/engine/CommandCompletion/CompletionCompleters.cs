@@ -6998,6 +6998,8 @@ namespace System.Management.Automation
 
         public object VisitPipelineChain(PipelineChainAst pipelineChainAst) { return false; }
 
+        public object VisitCallNativeStatement(CallNativeStatementAst callNativeAst) { return false; }
+
         public object VisitConfigurationDefinition(ConfigurationDefinitionAst configurationDefinitionAst)
         {
             return configurationDefinitionAst.Body.Accept(this);

@@ -178,6 +178,9 @@ namespace System.Management.Automation.Language
 
         /// <summary/>
         object VisitPipelineChain(PipelineChainAst statementChainAst) => DefaultVisit(statementChainAst);
+
+        /// <summary/>
+        object VisitCallNativeStatement(CallNativeStatementAst callNativeAst) => DefaultVisit(callNativeAst);
     }
 
 #if DEBUG
@@ -323,6 +326,8 @@ namespace System.Management.Automation.Language
         public override AstVisitAction VisitTernaryExpression(TernaryExpressionAst ast) => CheckParent(ast);
 
         public override AstVisitAction VisitPipelineChain(PipelineChainAst ast) => CheckParent(ast);
+
+        public override AstVisitAction VisitCallNativeStatement(CallNativeStatementAst ast) => CheckParent(ast);
     }
 
     /// <summary>
@@ -559,6 +564,8 @@ namespace System.Management.Automation.Language
         public override AstVisitAction VisitTernaryExpression(TernaryExpressionAst ast) { return Check(ast); }
 
         public override AstVisitAction VisitPipelineChain(PipelineChainAst ast) { return Check(ast); }
+
+        public override AstVisitAction VisitCallNativeStatement(CallNativeStatementAst ast) { return Check(ast); }
     }
 
     /// <summary>
@@ -699,5 +706,8 @@ namespace System.Management.Automation.Language
         public virtual object VisitTernaryExpression(TernaryExpressionAst ternaryExpressionAst) { return null; }
         /// <summary/>
         public virtual object VisitPipelineChain(PipelineChainAst statementChainAst) { return null; }
+
+        /// <summary/>
+        public virtual object VisitCallNativeStatement(CallNativeStatementAst callNativeAst) { return null; }
     }
 }

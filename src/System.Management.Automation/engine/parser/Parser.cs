@@ -2103,6 +2103,9 @@ namespace System.Management.Automation.Language
                         nameof(ParserStrings.UsingMustBeAtStartOfScript),
                         ParserStrings.UsingMustBeAtStartOfScript);
                     break;
+                case TokenKind.CallNative:
+                    statement = CallNativeStatementRule(token);
+                    break;
 
                 default:
                     if (attributes != null)
@@ -4837,6 +4840,14 @@ namespace System.Management.Automation.Language
             }
 
             return new PropertyMemberAst(ExtentOf(enumeratorName, endExtent), enumeratorName.Value, null, null, enumMemberAttributes, initialValueAst);
+        }
+
+        private CallNativeStatementAst CallNativeStatementRule(Token token)
+        {
+            // G call-native-statement:
+            // G    `--%` `command` `args`...
+
+            return new CallNativeStatementAst(token.Extent, null);
         }
 
         private StatementAst UsingStatementRule(Token usingToken)

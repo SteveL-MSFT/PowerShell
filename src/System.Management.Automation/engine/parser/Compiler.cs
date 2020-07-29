@@ -3661,6 +3661,12 @@ namespace System.Management.Automation.Language
             return fullyExpandedBlock;
         }
 
+        public object VisitCallNativeStatement(CallNativeStatementAst callNativeAst)
+        {
+            // TODO
+            return null;
+        }
+
         /// <summary>
         /// Compile a pipeline as an element in a pipeline chain.
         /// Needed since pure expressions won't set $? after them.
