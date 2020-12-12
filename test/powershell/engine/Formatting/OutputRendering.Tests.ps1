@@ -66,7 +66,6 @@ Describe 'OutputRendering tests' {
         }
     }
 
-    # Error isn't covered here because it has custom formatting
     It 'OutputRendering is correct for <stream>' -TestCases @(
         @{ stream = 'Verbose' }
         @{ stream = 'Debug' }
@@ -81,5 +80,11 @@ Describe 'OutputRendering tests' {
 
         $out = pwsh -noprofile -command "[System.Management.Automation.Internal.InternalTestHooks]::SetTestHook('BypassOutputRedirectionCheck', `$true); write-$stream $switch 'hello'"
         $out | Should -BeExactly "$($PSStyle.Formatting.$stream)$($stream.ToUpper()): hello"
+    }
+
+    It 'OutputRendering is correct for Error' {
+        $format = $PSStyle.Background.Red + $PSStyle.Foreground.White
+        $out = pwsh -noprofile -command "[System.Management.Automation.Internal.InternalTestHooks]::SetTestHook('BypassOutputRedirectionCheck', `$true); `$PSStyle.Formatting.Error = """"$format""""; throw 'hello'"
+        $out | Should -BeExactly "${format}Exception: ${format}hello$($psstyle.Reset)" -Because ($out | Format-Hex | Out-String)
     }
 }

@@ -803,9 +803,14 @@ namespace System.Management.Automation.Runspaces
                             $ellipsis = ""`u{2026}""
                             $resetColor = ''
                             if ($Host.UI.SupportsVirtualTerminal -and ([string]::IsNullOrEmpty($env:__SuppressAnsiEscapeSequences))) {
-                                $resetColor = [System.Management.Automation.VTUtility]::GetEscapeSequence(
-                                    [System.Management.Automation.VTUtility+VT]::Reset
-                                )
+                                if ($EnabledExperimentalFeatures.Contains(""PSAnsiRendering"")) {
+                                    $resetColor = $PSStyle.Reset
+                                }
+                                else {
+                                    $resetColor = [System.Management.Automation.VTUtility]::GetEscapeSequence(
+                                        [System.Management.Automation.VTUtility+VT]::Reset
+                                    )
+                                }
                             }
 
                             function Get-VT100Color([ConsoleColor] $color) {
@@ -822,7 +827,10 @@ namespace System.Management.Automation.Runspaces
                                 $prefix = ' ' * $indent
                                 $accentColor = ''
 
-                                if ($null -ne $Host.PrivateData) {
+                                if ($EnabledExperimentalFeatures.Contains(""PSAnsiRendering"")) {
+                                    $accentColor = $PSStyle.Formatting.ErrorAccent
+                                }
+                                elseif ($null -ne $Host.PrivateData) {
                                     $accentColor = Get-VT100Color ($Host.PrivateData.FormatAccentColor ?? $Host.PrivateData.ErrorForegroundColor)
                                 }
 
@@ -1090,7 +1098,11 @@ namespace System.Management.Automation.Runspaces
                                         $errorColor = ''
                                         $accentColor = ''
 
-                                        if ($null -ne $Host.PrivateData) {
+                                        if ($EnabledExperimentalFeatures.Contains(""PSAnsiRendering"")) {
+                                            $errorColor = $PSStyle.Formatting.Error
+                                            $accentColor = $PSStyle.Formatting.ErrorAccent
+                                        }
+                                        elseif ($null -ne $Host.PrivateData) {
                                             $errorColor = Get-VT100Color $Host.PrivateData.ErrorForegroundColor
                                             $accentColor = Get-VT100Color ($Host.PrivateData.ErrorAccentColor ?? $errorColor)
                                         }
