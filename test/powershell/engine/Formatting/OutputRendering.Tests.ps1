@@ -4,11 +4,6 @@
 Describe 'OutputRendering tests' {
     BeforeAll {
         $PSDefaultParameterValues.Add('It:Skip', (-not $EnabledExperimentalFeatures.Contains('PSAnsiRendering')))
-        $th = New-TestHost
-        $rs = [runspacefactory]::Createrunspace($th)
-        $rs.open()
-        $ps = [powershell]::Create()
-        $ps.Runspace = $rs
     }
 
     AfterAll {
@@ -25,8 +20,6 @@ Describe 'OutputRendering tests' {
         if ($null -ne $PSStyle) {
             $PSStyle.OutputRendering = $oldOutputRendering
         }
-
-        $ps.Commands.Clear()
     }
 
     It 'OutputRendering works for "<outputRendering>" to the host' -TestCases @(
