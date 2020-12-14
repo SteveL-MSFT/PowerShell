@@ -688,11 +688,33 @@ namespace System.Management.Automation.Runspaces
         {
             yield return new FormatViewDefinition("service",
                 TableControl.Create()
-                    .AddHeader(width: 8)
+                    .AddHeader(width: 8, label: "Status")
                     .AddHeader(width: 18)
                     .AddHeader(width: 38)
                     .StartRowDefinition()
-                        .AddPropertyColumn("Status")
+                        .AddScriptBlockColumn(@"
+                            if ($EnabledExperimentalFeatures.Contains('PSAnsiRendering')) {
+                                $sb = [System.Text.StringBuilder]::new()
+                                switch ($_.Status) {
+                                    ([System.ServiceProcess.ServiceControllerStatus]::Running) {
+                                        $null = $sb.Append($PSStyle.Foreground.Green)
+                                    }
+                                    ([System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+                                        $null = $sb.Append($PSStyle.Foreground.Red)
+                                    }
+                                    ([System.ServiceProcess.ServiceControllerStatus]::Paused) {
+                                        $null = $sb.Append($PSStyle.Foreground.Yellow)
+                                    }
+                                }
+
+                                $null = $sb.Append($_.Status)
+                                $null = $sb.Append($PSStyle.Reset)
+                                $sb.ToString()
+                            }
+                            else {
+                                $_.Status
+                            }
+                        ")
                         .AddPropertyColumn("Name")
                         .AddPropertyColumn("DisplayName")
                     .EndRowDefinition()
@@ -703,7 +725,30 @@ namespace System.Management.Automation.Runspaces
                     .StartEntry()
                         .AddItemProperty(@"Name")
                         .AddItemProperty(@"DisplayName")
-                        .AddItemProperty(@"Status")
+                        .AddItemScriptBlock(@"
+                            if ($EnabledExperimentalFeatures.Contains('PSAnsiRendering')) {
+                                $sb = [System.Text.StringBuilder]::new()
+                                switch ($_.Status) {
+                                    ([System.ServiceProcess.ServiceControllerStatus]::Running) {
+                                        $null = $sb.Append($PSStyle.Foreground.Green)
+                                    }
+                                    ([System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+                                        $null = $sb.Append($PSStyle.Foreground.Red)
+                                    }
+                                    ([System.ServiceProcess.ServiceControllerStatus]::Paused) {
+                                        $null = $sb.Append($PSStyle.Foreground.Yellow)
+                                    }
+                                }
+
+                                $null = $sb.Append($_.Status)
+                                $null = $sb.Append($PSStyle.Reset)
+                                $sb.ToString()
+                            }
+                            else {
+                                $_.Status
+                            }
+                        ",
+                        label: "Status")
                         .AddItemProperty(@"DependentServices")
                         .AddItemProperty(@"ServicesDependedOn")
                         .AddItemProperty(@"CanPauseAndContinue")
