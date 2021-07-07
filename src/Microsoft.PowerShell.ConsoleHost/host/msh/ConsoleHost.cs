@@ -1467,18 +1467,50 @@ namespace Microsoft.PowerShell
 #endif
 
                 // If the debug pipe name was specified, create the custom IPC channel.
-                if (!string.IsNullOrEmpty(cpp.CustomPipeName))
+                if (!string.IsNullOrEmpty(cpp.CustomPipeName) && !cpp.GrpcMode)
                 {
                     RemoteSessionNamedPipeServer.CreateCustomNamedPipeServer(cpp.CustomPipeName);
                 }
 
-                // NTRAID#Windows Out Of Band Releases-915506-2005/09/09
-                // Removed HandleUnexpectedExceptions infrastructure
-                exitCode = DoRunspaceLoop(cpp.InitialCommand, cpp.SkipProfiles, cpp.Args, cpp.StaMode, cpp.ConfigurationName);
+                if (cpp.GrpcMode)
+                {
+                    exitCode = DoGrpcLoop();
+                }
+                else
+                {
+                    exitCode = DoRunspaceLoop(cpp.InitialCommand, cpp.SkipProfiles, cpp.Args, cpp.StaMode, cpp.ConfigurationName);
+                }
             }
             while (false);
 
             return exitCode;
+        }
+
+        private uint DoGrpcLoop()
+        {
+            if (string.IsNullOrEmpty(s_cpp.CustomPipeName))
+            {
+                ui.WriteErrorLine(ConsolehostStrings.CustomPipeNameMissing);
+                return ExitCodeInitFailure;
+            }
+
+            IHostBuilder CreateHostBuilder(string[] args) =>
+                Host.CreateDefaultBuilder(args)
+                    .ConfigureWebHostDefaults(webBuilder =>
+                    {
+                        webBuilder.UseStartup<Startup>();
+                        webBuilder.ConfigureKestrel(options =>
+                        {
+                            if (File.Exists(s_cpp.CustomPipeName))
+                            {
+                                File.Delete(s_cpp.CustomPipeName);
+                            }
+                            options.ListenUnixSocket(s_cpp.CustomPipeName, listenOptions =>
+                            {
+                                listenOptions.Protocols = HttpProtocols.Http2;
+                            });
+                        });
+                    });
         }
 
         /// <summary>

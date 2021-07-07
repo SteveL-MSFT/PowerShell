@@ -355,6 +355,15 @@ namespace Microsoft.PowerShell
             }
         }
 
+        internal bool GrpcMode
+        {
+            get
+            {
+                AssertArgumentsParsed();
+                return _grpcMode;
+            }
+        }
+
         internal bool SSHServerMode
         {
             get
@@ -786,6 +795,10 @@ namespace Microsoft.PowerShell
                 else if (MatchSwitch(switchKey, "noninteractive", "noni"))
                 {
                     _noInteractive = true;
+                }
+                else if (MatchSwitch(switchKey, "grpc", "grpc"))
+                {
+                    _grpcMode = true;
                 }
                 else if (MatchSwitch(switchKey, "socketservermode", "so"))
                 {
@@ -1328,6 +1341,7 @@ namespace Microsoft.PowerShell
             return true;
         }
 
+        private bool _grpcMode;
         private bool _socketServerMode;
         private bool _serverMode;
         private bool _namedPipeServerMode;

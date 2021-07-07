@@ -1,4 +1,57 @@
 syntax = "proto3";
 
-option csharp_namespace = "Microsoft.PowerShell";
+option csharp_namespace = "Microsoft.PowerShell.Grpc";
 
+service PowerShell {
+    rpc Run (ScriptBlock) returns (RunspaceId);
+    rpc GetStatus (RunspaceId) returns (PowerShellStatus);
+    rpc GetOutput (RunspaceId) returns (stream PowerShellOutput);
+}
+
+message ScriptBlock {
+    string script = 1;
+}
+
+message RunspaceId {
+    string id = 1;
+}
+
+message PowerShellStatus {
+    enum InvocationState {
+        NotStarted = 0;
+        Running = 1;
+        Stopping = 2;
+        Stopped = 3;
+        Completed = 4;
+        Failed = 5;
+        Disconnected = 6;
+    }
+
+    InvocationState state = 1;
+    bool HadErrors = 2;
+}
+
+message OutputStream {
+    enum StreamType {
+        NotUsed = 0;
+        Output = 1;
+        Error = 2;
+        Warning = 3;
+        Verbose = 4;
+        Debug = 5;
+        Informational = 6;
+    }
+
+    enum ContentType {
+        Text = 0;
+        Json = 1;
+    }
+
+    StreamType type = 1;
+    ContentType contentType = 2;
+    string content = 3;
+}
+
+message PowerShellOutput {
+    repeated OutputStream output = 1;
+}

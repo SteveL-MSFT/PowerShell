@@ -26,4 +26,9 @@
     <EmbeddedResource Remove="resources\HostMshSnapinResources.resx" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.28.0" />
+    <ProtoBuf Include=".\consolehost.proto" GrpcServices="Server" />
+  </ItemGroup>  
+
 </Project>
