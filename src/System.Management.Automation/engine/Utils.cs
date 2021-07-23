@@ -484,7 +484,15 @@ namespace System.Management.Automation
         {
             // Use the location of SMA.dll as the application base.
             Assembly assembly = typeof(PSObject).Assembly;
-            return Path.GetDirectoryName(assembly.Location);
+            string path = assembly.Location;
+
+            // Can be null in the case of a single exe build.
+            if (string.IsNullOrEmpty(assembly.Location))
+            {
+                path = Environment.ProcessPath;
+            }
+
+            return Path.GetDirectoryName(path);
         }
 
         private static string[] s_productFolderDirectories;
