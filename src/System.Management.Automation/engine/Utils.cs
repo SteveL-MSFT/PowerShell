@@ -1253,30 +1253,34 @@ namespace System.Management.Automation
 #endif
         }
 
+#if !UNIX
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern uint GetFullPathName(string lpFileName, uint nBufferLength, out StringBuilder lpBuffer, out StringBuilder lpFilePart);
+#endif
+
         internal static bool IsReservedDeviceName(string destinationPath)
         {
 #if !UNIX
-            string[] reservedDeviceNames = { "CON", "PRN", "AUX", "CLOCK$", "NUL", "CONIN$", "CONOUT$",
-                                             "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-                                             "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
-            string compareName = Path.GetFileName(destinationPath);
-            string noExtensionCompareName = Path.GetFileNameWithoutExtension(destinationPath);
+            StringBuilder buffer = new();
+            StringBuilder filename = new();
 
-            if (((compareName.Length < 3) || (compareName.Length > 7)) &&
-                ((noExtensionCompareName.Length < 3) || (noExtensionCompareName.Length > 7)))
+            // get the required buffer size
+            uint numChars = GetFullPathName(destinationPath, nBufferLength: 1, out buffer, out filename);
+            if (numChars > 0)
             {
-                return false;
-            }
-
-            foreach (string deviceName in reservedDeviceNames)
-            {
-                if (
-                    string.Equals(deviceName, compareName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(deviceName, noExtensionCompareName, StringComparison.OrdinalIgnoreCase))
+                buffer = new StringBuilder((int)numChars);
+                filename = new StringBuilder((int)numChars);
+                numChars = GetFullPathName(destinationPath, numChars, out buffer, out filename);
+                if (numChars > 0)
                 {
-                    return true;
+                    // reserved devices will resolve to \\.\DEV where DEV is a 3 letter reserved device name + null terminator
+                    if (numChars == 8 && buffer.ToString().StartsWith("\\\\.\\"))
+                    {
+                        return true;
+                    }
                 }
             }
+
 #endif
             return false;
         }
