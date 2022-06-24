@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Management.Automation;
+using System.Security;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -344,7 +345,6 @@ namespace Microsoft.PowerShell.Commands
     /// message.
     /// </summary>
     [Cmdlet(VerbsSecurity.Unprotect, "CmsMessage", HelpUri = "https://go.microsoft.com/fwlink/?LinkId=2096701", DefaultParameterSetName = "ByWinEvent")]
-    [OutputType(typeof(string))]
     public sealed class UnprotectCmsMessageCommand : PSCmdlet
     {
         /// <summary>
@@ -410,6 +410,16 @@ namespace Microsoft.PowerShell.Commands
         /// </summary>
         [Parameter(Position = 1)]
         public CmsMessageRecipient[] To
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Determines whether the output should be a SecureString instead of plaintext.
+        /// </summary>
+        [Parameter()]
+        public SwitchParameter AsSecureString
         {
             get;
             set;
@@ -514,7 +524,21 @@ namespace Microsoft.PowerShell.Commands
             }
 
             string decrypted = Decrypt(actualContent);
-            WriteObject(decrypted);
+
+            if (!AsSecureString)
+            {
+                WriteObject(decrypted);
+            }
+            else
+            {
+                var secureDecrypted = new SecureString();
+                foreach (char c in decrypted)
+                {
+                    secureDecrypted.AppendChar(c);
+                }
+
+                WriteObject(secureDecrypted);
+            }
         }
 
         private string Decrypt(string actualContent)
