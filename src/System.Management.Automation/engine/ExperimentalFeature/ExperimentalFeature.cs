@@ -21,6 +21,7 @@ namespace System.Management.Automation
         #region Const Members
 
         internal const string EngineSource = "PSEngine";
+        internal const string PSAutomaticJsonConversionFeatureName = "PSAutomaticJsonConversion";
         internal const string PSNativeCommandErrorActionPreferenceFeatureName = "PSNativeCommandErrorActionPreference";
 
         #endregion
@@ -116,6 +117,9 @@ namespace System.Management.Automation
                 new ExperimentalFeature(
                     name: PSNativeCommandErrorActionPreferenceFeatureName,
                     description: "Native commands with non-zero exit codes issue errors according to $ErrorActionPreference when $PSNativeCommandUseErrorActionPreference is $true"),
+                new ExperimentalFeature(
+                    name: PSAutomaticJsonConversionFeatureName,
+                    description: "Automatically convert JSON from native commands into ordered hashtables"),
             };
 
             EngineExperimentalFeatures = new ReadOnlyCollection<ExperimentalFeature>(engineFeatures);

@@ -269,6 +269,11 @@ namespace System.Management.Automation
 
         internal static readonly VariablePath NativeArgumentPassingVarPath = new VariablePath(NativeArgumentPassing);
 
+        // Controls whether PowerShell automatically converts JSON objects to ordered hashtables
+        internal const string PSAutomaticJsonConversion = "PSAutomaticJsonConversion";
+
+        internal static readonly VariablePath PSAutomaticJsonConversionVarPath = new VariablePath(PSAutomaticJsonConversion);
+
         internal const string ErrorView = "ErrorView";
 
         internal static readonly VariablePath ErrorViewVarPath = new VariablePath(ErrorView);

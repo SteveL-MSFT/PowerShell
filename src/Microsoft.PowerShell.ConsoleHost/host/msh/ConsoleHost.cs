@@ -138,6 +138,8 @@ namespace Microsoft.PowerShell
                 Environment.SetEnvironmentVariable("PATH", pshome + path);
             }
 
+            Environment.SetEnvironmentVariable("SHELL_COMMAND_PREFERRED_OUTPUT", "JSON");
+
             try
             {
                 string profileDir = Platform.CacheDirectory;

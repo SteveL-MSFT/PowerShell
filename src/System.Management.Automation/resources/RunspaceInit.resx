@@ -225,4 +225,7 @@
   <data name="PSEditionDescription" xml:space="preserve">
     <value>Edition information for the current PowerShell session</value>
   </data>
+  <data name="PSAutomaticJsonConversionDescription" xml:space="preserve">
+    <value>Automatically convert JSON output from native commands into ordered hashtables</value>
+  </data>
 </root>

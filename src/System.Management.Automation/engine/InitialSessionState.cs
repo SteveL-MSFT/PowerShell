@@ -4485,6 +4485,17 @@ end {
                     ScopedItemOptions.None,
                     new ArgumentTypeConverterAttribute(typeof(NativeArgumentPassingStyle))));
 
+            if (ExperimentalFeature.IsEnabled(ExperimentalFeature.PSAutomaticJsonConversionFeatureName))
+            {
+                builtinVariables.Add(
+                    new SessionStateVariableEntry(
+                        SpecialVariables.PSAutomaticJsonConversion,
+                        value: true,
+                        RunspaceInit.PSAutomaticJsonConversionDescription,
+                        ScopedItemOptions.None,
+                        new ArgumentTypeConverterAttribute(typeof(bool))));
+            }
+
             BuiltInVariables = builtinVariables.ToArray();
         }
 

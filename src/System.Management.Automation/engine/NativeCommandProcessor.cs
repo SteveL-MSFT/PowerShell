@@ -16,6 +16,7 @@ using System.Management.Automation.Runspaces;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Xml;
 using Dbg = System.Management.Automation.Diagnostics;
@@ -1204,7 +1205,24 @@ namespace System.Management.Automation
             }
             else if (outputValue.Stream == MinishellStream.Output)
             {
-                this.commandRuntime._WriteObjectSkipAllowCheck(outputValue.Data);
+                bool doJsonConversion = LanguagePrimitives.IsTrue(Command.Context.GetVariableValue(SpecialVariables.PSAutomaticJsonConversionVarPath, false));
+                if (doJsonConversion && outputValue.Data is string)
+                {
+                    try
+                    {
+                        string jsonText = outputValue.Data as string;
+                        var json = JsonDocument.Parse(jsonText);
+                        this.commandRuntime._WriteObjectSkipAllowCheck("valid json");
+                    }
+                    catch (JsonException)
+                    {
+                        this.commandRuntime._WriteObjectSkipAllowCheck(outputValue.Data);
+                    }
+                }
+                else
+                {
+                    this.commandRuntime._WriteObjectSkipAllowCheck(outputValue.Data);
+                }
             }
             else if (outputValue.Stream == MinishellStream.Debug)
             {
