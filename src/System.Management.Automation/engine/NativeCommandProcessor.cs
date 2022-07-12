@@ -1897,6 +1897,14 @@ namespace System.Management.Automation
                 {
                     psObject.Properties.Add(new PSNoteProperty(key, ConvertToPSObject(obj[key])));
                 }
+                else if (key == "_type")
+                {
+                    var typeNames = obj[key].AsArray();
+                    for (int i = typeNames.Count - 1; i >= 0; i--)
+                    {
+                        psObject.TypeNames.Insert(index: 0, typeNames[i].ToString());
+                    }
+                }
                 else
                 {
                     psObject.Properties.Add(new PSNoteProperty(key, obj[key]));
