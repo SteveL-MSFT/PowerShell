@@ -1878,7 +1878,7 @@ namespace System.Management.Automation
             try
             {
                 JsonNode obj = JsonNode.Parse(json);
-                return ConvertToPSObject(obj);
+                return ConvertJsonToPSObject(obj);
             }
             catch (JsonException)
             {
@@ -1886,7 +1886,7 @@ namespace System.Management.Automation
             }
         }
 
-        private static PSObject ConvertToPSObject(JsonNode obj)
+        private static PSObject ConvertJsonToPSObject(JsonNode obj)
         {
             PSObject psObject = new();
 
@@ -1895,7 +1895,7 @@ namespace System.Management.Automation
                 var key = keyValuePair.Key;
                 if (obj[key] is JsonObject)
                 {
-                    psObject.Properties.Add(new PSNoteProperty(key, ConvertToPSObject(obj[key])));
+                    psObject.Properties.Add(new PSNoteProperty(key, ConvertJsonToPSObject(obj[key])));
                 }
                 else if (key == "_type")
                 {
