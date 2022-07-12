@@ -17,6 +17,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Xml;
 using Dbg = System.Management.Automation.Diagnostics;
@@ -488,6 +489,7 @@ namespace System.Management.Automation
         private static bool? s_supportScreenScrape = null;
         private readonly bool _isTranscribing;
         private Host.Coordinates _startPosition;
+        private bool _jsonConversion = false;
 
         /// <summary>
         /// Object used for synchronization between StopProcessing thread and
@@ -514,14 +516,28 @@ namespace System.Management.Automation
             bool redirectOutput;
             bool redirectError;
             bool redirectInput;
+            bool isStdoutToHost;
+            bool isStderrToHost;
+
+            _jsonConversion = LanguagePrimitives.IsTrue(this.Command.Context.GetVariableValue(SpecialVariables.PSAutomaticJsonConversionVarPath, false));
 
             _startPosition = new Host.Coordinates();
 
             bool isWindowsApplication = IsWindowsApplication(this.Path);
-            CalculateIORedirection(isWindowsApplication, out redirectOutput, out redirectError, out redirectInput);
+            CalculateIORedirection(isWindowsApplication, out redirectOutput, out redirectError, out redirectInput, out isStdoutToHost, out isStderrToHost);
 
             // Find out if it's the only command in the pipeline.
             bool soloCommand = this.Command.MyInvocation.PipelineLength == 1;
+
+            if (_jsonConversion && isStdoutToHost)
+            {
+                redirectOutput = true;
+            }
+
+            if (_jsonConversion && isStderrToHost)
+            {
+                redirectError = true;
+            }
 
             // Get the start info for the process.
             ProcessStartInfo startInfo = GetProcessStartInfo(redirectOutput, redirectError, redirectInput, soloCommand);
@@ -743,7 +759,7 @@ namespace System.Management.Automation
                     {
                         _nativeProcessOutputQueue = new BlockingCollection<ProcessOutputObject>();
                         // we don't assign the handler to anything, because it's used only for objects marshaling
-                        new ProcessOutputHandler(_nativeProcess, _nativeProcessOutputQueue);
+                        new ProcessOutputHandler(_nativeProcess, _nativeProcessOutputQueue, _jsonConversion);
                     }
                 }
             }
@@ -1205,24 +1221,7 @@ namespace System.Management.Automation
             }
             else if (outputValue.Stream == MinishellStream.Output)
             {
-                bool doJsonConversion = LanguagePrimitives.IsTrue(Command.Context.GetVariableValue(SpecialVariables.PSAutomaticJsonConversionVarPath, false));
-                if (doJsonConversion && outputValue.Data is string)
-                {
-                    try
-                    {
-                        string jsonText = outputValue.Data as string;
-                        var json = JsonDocument.Parse(jsonText);
-                        this.commandRuntime._WriteObjectSkipAllowCheck("valid json");
-                    }
-                    catch (JsonException)
-                    {
-                        this.commandRuntime._WriteObjectSkipAllowCheck(outputValue.Data);
-                    }
-                }
-                else
-                {
-                    this.commandRuntime._WriteObjectSkipAllowCheck(outputValue.Data);
-                }
+                this.commandRuntime._WriteObjectSkipAllowCheck(outputValue.Data);
             }
             else if (outputValue.Stream == MinishellStream.Debug)
             {
@@ -1423,9 +1422,15 @@ namespace System.Management.Automation
                 || s_legacyCommands.Contains(IO.Path.GetFileNameWithoutExtension(filePath));
         }
 
-        private static bool IsDownstreamOutDefault(Pipe downstreamPipe)
+        private bool IsDownstreamOutDefault(Pipe downstreamPipe)
         {
             Diagnostics.Assert(downstreamPipe != null, "Caller makes sure the passed-in parameter is not null.");
+
+            // If JSON conversion is enabled, we need to redirect the output so it doesn't go straight to the console
+            if (_jsonConversion)
+            {
+                return false;
+            }
 
             // Check if the downstream cmdlet is Out-Default, which is the default outputter.
             CommandProcessorBase outputProcessor = downstreamPipe.DownstreamCmdlet;
@@ -1454,11 +1459,15 @@ namespace System.Management.Automation
         /// <param name="redirectOutput"></param>
         /// <param name="redirectError"></param>
         /// <param name="redirectInput"></param>
-        private void CalculateIORedirection(bool isWindowsApplication, out bool redirectOutput, out bool redirectError, out bool redirectInput)
+        /// <param name="isStdoutToHost"></param>
+        /// <param name-"isStderrToHost"></param>
+        private void CalculateIORedirection(bool isWindowsApplication, out bool redirectOutput, out bool redirectError, out bool redirectInput, out bool isStdoutToHost, out bool isStderrToHost)
         {
             redirectInput = this.Command.MyInvocation.ExpectingInput;
             redirectOutput = true;
             redirectError = true;
+            isStdoutToHost = false;
+            isStderrToHost = false;
 
             // Figure out if we're going to run this process "standalone" i.e. without
             // redirecting anything. This is a bit tricky as we always run redirected so
@@ -1482,6 +1491,7 @@ namespace System.Management.Automation
                 if (IsDownstreamOutDefault(this.commandRuntime.OutputPipe))
                 {
                     redirectOutput = false;
+                    isStdoutToHost = true;
                 }
             }
 
@@ -1500,6 +1510,7 @@ namespace System.Management.Automation
                 if (IsDownstreamOutDefault(this.commandRuntime.ErrorOutputPipe))
                 {
                     redirectError = false;
+                    isStderrToHost = true;
                 }
             }
 
@@ -1731,13 +1742,15 @@ namespace System.Management.Automation
         private bool _isXmlCliOutput;
         private bool _isXmlCliError;
         private readonly string _processFileName;
+        private readonly bool _jsonConversion;
 
-        public ProcessOutputHandler(Process process, BlockingCollection<ProcessOutputObject> queue)
+        public ProcessOutputHandler(Process process, BlockingCollection<ProcessOutputObject> queue, bool jsonConversion)
         {
             Debug.Assert(process.StartInfo.RedirectStandardOutput || process.StartInfo.RedirectStandardError, "Caller should redirect at least one stream");
             _refCount = 0;
             _processFileName = process.StartInfo.FileName;
             _queue = queue;
+            _jsonConversion = jsonConversion;
 
             // we incrementing refCount on the same thread and before running any processing
             // so it's safe to do it without Interlocked.
@@ -1776,26 +1789,41 @@ namespace System.Management.Automation
         {
             if (outputReceived.Data != null)
             {
-                if (_isFirstOutput)
+                if (_jsonConversion)
                 {
-                    _isFirstOutput = false;
-                    if (string.Equals(outputReceived.Data, XmlCliTag, StringComparison.Ordinal))
+                    PSObject obj = DeserializeJsonObject(outputReceived.Data);
+                    if (obj is not null)
                     {
-                        _isXmlCliOutput = true;
-                        return;
+                        _queue.Add(new ProcessOutputObject(obj, MinishellStream.Output));
                     }
-                }
-
-                if (_isXmlCliOutput)
-                {
-                    foreach (var record in DeserializeCliXmlObject(outputReceived.Data, true))
+                    else
                     {
-                        _queue.Add(record);
+                        _queue.Add(new ProcessOutputObject(outputReceived.Data, MinishellStream.Output));
                     }
                 }
                 else
                 {
-                    _queue.Add(new ProcessOutputObject(outputReceived.Data, MinishellStream.Output));
+                    if (_isFirstOutput)
+                    {
+                        _isFirstOutput = false;
+                        if (string.Equals(outputReceived.Data, XmlCliTag, StringComparison.Ordinal))
+                        {
+                            _isXmlCliOutput = true;
+                            return;
+                        }
+                    }
+
+                    if (_isXmlCliOutput)
+                    {
+                        foreach (var record in DeserializeCliXmlObject(outputReceived.Data, true))
+                        {
+                            _queue.Add(record);
+                        }
+                    }
+                    else
+                    {
+                        _queue.Add(new ProcessOutputObject(outputReceived.Data, MinishellStream.Output));
+                    }
                 }
             }
             else
@@ -1843,6 +1871,39 @@ namespace System.Management.Automation
             {
                 decrementRefCount();
             }
+        }
+
+        private static PSObject DeserializeJsonObject(string json)
+        {
+            try
+            {
+                JsonNode obj = JsonNode.Parse(json);
+                return ConvertToPSObject(obj);
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        private static PSObject ConvertToPSObject(JsonNode obj)
+        {
+            PSObject psObject = new();
+
+            foreach (KeyValuePair<string, JsonNode> keyValuePair in obj.AsObject())
+            {
+                var key = keyValuePair.Key;
+                if (obj[key] is JsonObject)
+                {
+                    psObject.Properties.Add(new PSNoteProperty(key, ConvertToPSObject(obj[key])));
+                }
+                else
+                {
+                    psObject.Properties.Add(new PSNoteProperty(key, obj[key]));
+                }
+            }
+
+            return psObject;
         }
 
         private List<ProcessOutputObject> DeserializeCliXmlObject(string xml, bool isOutput)
