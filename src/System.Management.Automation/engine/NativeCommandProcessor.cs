@@ -1893,6 +1893,13 @@ namespace System.Management.Automation
             foreach (KeyValuePair<string, JsonNode> keyValuePair in obj.AsObject())
             {
                 var key = keyValuePair.Key;
+                if (psObject.Properties.Match(key).Count > 0)
+                {
+                    // if the key already exists, the first one wins
+                    // this only affects where cases differ in JSON, but is not supported by PSObject
+                    continue;
+                }
+
                 if (obj[key] is JsonObject)
                 {
                     psObject.Properties.Add(new PSNoteProperty(key, ConvertJsonToPSObject(obj[key])));
