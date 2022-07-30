@@ -138,8 +138,11 @@ namespace Microsoft.PowerShell
                 Environment.SetEnvironmentVariable("PATH", pshome + path);
             }
 
-            Environment.SetEnvironmentVariable("SHELL_STDOUT_PREFERRED_OUTPUT", "JSON");
-            Environment.SetEnvironmentVariable("SHELL_STDERR_PREFERRED_OUTPUT", "JSON");
+            if (ExperimentalFeature.IsEnabled(ExperimentalFeature.PSAutomaticJsonConversionFeatureName))
+            {
+                Environment.SetEnvironmentVariable("SHELL_STDOUT_PREFERRED_OUTPUT", "JSON");
+                Environment.SetEnvironmentVariable("SHELL_STDERR_PREFERRED_OUTPUT", "JSON");
+            }
 
             try
             {

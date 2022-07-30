@@ -1836,6 +1836,16 @@ namespace System.Management.Automation
         {
             if (errorReceived.Data != null)
             {
+                if (_jsonConversion)
+                {
+                    var obj = DeserializeJsonStderr(errorReceived.Data, sender as Process);
+                    if (obj is not null)
+                    {
+                        _queue.Add(new ProcessOutputObject(obj, MinishellStream.Error));
+                        return;
+                    }
+                }
+
                 if (string.Equals(errorReceived.Data, XmlCliTag, StringComparison.Ordinal))
                 {
                     _isXmlCliError = true;
@@ -1884,6 +1894,120 @@ namespace System.Management.Automation
             {
                 return null;
             }
+        }
+
+        private struct Error
+        {
+            string code;
+            string message;
+        }
+
+        private struct Warning
+        {
+            string message;
+        }
+
+        private struct Verbose
+        {
+            string message;
+        }
+
+        private struct Debug
+        {
+            string message;
+        }
+
+        private struct Information
+        {
+            object messageData;
+            string[] tags;
+        }
+
+        private struct Progress
+        {
+            string activity;
+            string status;
+            int id;
+            int percentComplete;
+            int secondsRemaining;
+            string currentOperation;
+            int parentId;
+            bool completed;
+            int sourceId;
+        }
+
+        private static object DeserializeJsonStderr(string json, Process process)
+        {
+            try
+            {
+                var error = JsonSerializer.Deserialize<Error>(json);
+                return new ErrorRecord(new Exception(error.message), error.code, ErrorCategory.NotSpecified, null);
+            }
+            catch (JsonException)
+            {
+                // ignore
+            }
+
+            try
+            {
+                var warning = JsonSerializer.Deserialize<Warning>(json);
+                return new WarningRecord(warning.message);
+            }
+            catch (JsonException)
+            {
+                // ignore
+            }
+
+            try
+            {
+                var verbose = JsonSerializer.Deserialize<Verbose>(json);
+                return new VerboseRecord(verbose.message);
+            }
+            catch (JsonException)
+            {
+                // ignore
+            }
+
+            try
+            {
+                var debug = JsonSerializer.Deserialize<Debug>(json);
+                return new DebugRecord(debug.message);
+            }
+            catch (JsonException)
+            {
+                // ignore
+            }
+
+            try
+            {
+                var information = JsonSerializer.Deserialize<Information>(json);
+                var informationRecord = new InformationRecord(information.messageData, process.name);
+                informationRecord.Tags = information.tags;
+                return informationRecord;
+            }
+            catch (JsonException)
+            {
+                // ignore
+            }
+
+            try
+            {
+                var progress = JsonSerializer.Deserialize<Progress>(json);
+                var progressRecord = new ProgressRecord(progress.id, progress.activity, progress.status);
+                progressRecord.PercentComplete = progress.percentComplete;
+                progressRecord.SecondsRemaining = progress.secondsRemaining;
+                progressRecord.CurrentOperation = progress.currentOperation;
+                progressRecord.ParentActivityId = progress.parentId;
+                progressRecord.RecordType = progress.completed ? ProgressRecordType.Completed : ProgressRecordType.Processing;
+                progressRecord.SourceId = progress.sourceId;
+                return progressRecord;
+            }
+            catch (JsonException)
+            {
+                // ignore
+            }
+
+            return null;
         }
 
         private static PSObject ConvertJsonToPSObject(JsonNode obj)
