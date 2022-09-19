@@ -1896,51 +1896,50 @@ namespace System.Management.Automation
             }
         }
 
-        private struct Error
+        internal struct ErrorJsonRecord
         {
-            string code;
-            string message;
+            public string code;
+            public string message;
         }
 
-        private struct Warning
+        internal struct WarningJsonRecord
         {
-            string message;
+            public string message;
         }
 
-        private struct Verbose
+        internal struct VerboseJsonRecord
         {
-            string message;
+            public string message;
         }
 
-        private struct Debug
+        internal struct DebugJsonRecord
         {
-            string message;
+            public string message;
         }
 
-        private struct Information
+        internal struct InformationJsonRecord
         {
-            object messageData;
-            string[] tags;
+            public object messageData;
+            public string[] tags;
         }
 
-        private struct Progress
+        internal struct ProgressJsonRecord
         {
-            string activity;
-            string status;
-            int id;
-            int percentComplete;
-            int secondsRemaining;
-            string currentOperation;
-            int parentId;
-            bool completed;
-            int sourceId;
+            public string activity;
+            public string status;
+            public int id;
+            public int percentComplete;
+            public int secondsRemaining;
+            public string currentOperation;
+            public int parentId;
+            public bool completed;
         }
 
         private static object DeserializeJsonStderr(string json, Process process)
         {
             try
             {
-                var error = JsonSerializer.Deserialize<Error>(json);
+                var error = JsonSerializer.Deserialize<ErrorJsonRecord>(json);
                 return new ErrorRecord(new Exception(error.message), error.code, ErrorCategory.NotSpecified, null);
             }
             catch (JsonException)
@@ -1950,7 +1949,7 @@ namespace System.Management.Automation
 
             try
             {
-                var warning = JsonSerializer.Deserialize<Warning>(json);
+                var warning = JsonSerializer.Deserialize<WarningJsonRecord>(json);
                 return new WarningRecord(warning.message);
             }
             catch (JsonException)
@@ -1960,7 +1959,7 @@ namespace System.Management.Automation
 
             try
             {
-                var verbose = JsonSerializer.Deserialize<Verbose>(json);
+                var verbose = JsonSerializer.Deserialize<VerboseJsonRecord>(json);
                 return new VerboseRecord(verbose.message);
             }
             catch (JsonException)
@@ -1970,7 +1969,7 @@ namespace System.Management.Automation
 
             try
             {
-                var debug = JsonSerializer.Deserialize<Debug>(json);
+                var debug = JsonSerializer.Deserialize<DebugJsonRecord>(json);
                 return new DebugRecord(debug.message);
             }
             catch (JsonException)
@@ -1980,9 +1979,9 @@ namespace System.Management.Automation
 
             try
             {
-                var information = JsonSerializer.Deserialize<Information>(json);
-                var informationRecord = new InformationRecord(information.messageData, process.name);
-                informationRecord.Tags = information.tags;
+                var information = JsonSerializer.Deserialize<InformationJsonRecord>(json);
+                var informationRecord = new InformationRecord(information.messageData, process.ProcessName);
+                informationRecord.Tags = new List<String>(information.tags);
                 return informationRecord;
             }
             catch (JsonException)
@@ -1992,14 +1991,13 @@ namespace System.Management.Automation
 
             try
             {
-                var progress = JsonSerializer.Deserialize<Progress>(json);
+                var progress = JsonSerializer.Deserialize<ProgressJsonRecord>(json);
                 var progressRecord = new ProgressRecord(progress.id, progress.activity, progress.status);
                 progressRecord.PercentComplete = progress.percentComplete;
                 progressRecord.SecondsRemaining = progress.secondsRemaining;
                 progressRecord.CurrentOperation = progress.currentOperation;
                 progressRecord.ParentActivityId = progress.parentId;
                 progressRecord.RecordType = progress.completed ? ProgressRecordType.Completed : ProgressRecordType.Processing;
-                progressRecord.SourceId = progress.sourceId;
                 return progressRecord;
             }
             catch (JsonException)
