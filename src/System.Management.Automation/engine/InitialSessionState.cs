@@ -4773,10 +4773,12 @@ end {
             {
                 "Microsoft.PowerShell.Utility",
                 "Microsoft.PowerShell.Management",
-                "Microsoft.PowerShell.Diagnostics",
                 "Microsoft.PowerShell.Host",
                 "Microsoft.PowerShell.Security",
+#if !UNIX
+                "Microsoft.PowerShell.Diagnostics",
                 "Microsoft.WSMan.Management"
+#endif
             };
 
         internal static readonly HashSet<string> NestedEngineModules = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
