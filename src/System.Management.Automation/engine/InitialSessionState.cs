@@ -5220,6 +5220,10 @@ end {
                 Dictionary<string, SessionStateProviderEntry> providersCheck = null;
                 Dictionary<string, List<SessionStateAliasEntry>> aliasesCheck = null;
                 AnalyzeModuleAssemblyWithReflection(assembly, name, psSnapInInfo, moduleInfo, helpFile, ref cmdletsCheck, ref aliasesCheck, ref providersCheck);
+                if (providersCheck == null)
+                {
+                    return;
+                }
 
                 Diagnostics.Assert(aliasesCheck == null, "InitializeCoreCmdletsAndProviders assumes no aliases are defined in System.Management.Automation.dll");
                 Diagnostics.Assert(providersCheck.Count == providers.Count, "new Provider added to System.Management.Automation.dll - update InitializeCoreCmdletsAndProviders");
