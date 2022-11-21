@@ -15,7 +15,8 @@
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>copyused</TrimMode>
     <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
-    <DebuggerSupport>false</DebuggerSupport>
+    <DebuggerSupport>true</DebuggerSupport>
+    <DebugType>embedded</DebugType>
     <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
     <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
     <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
