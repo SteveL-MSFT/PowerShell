@@ -6,14 +6,13 @@
     <Description>PowerShell top-level project with .NET CLI host</Description>
     <AssemblyName>pwsh</AssemblyName>
     <OutputType>Exe</OutputType>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
+    <PublishSingleFile Condition="'$(Package)' == 'SingleExe'">true</PublishSingleFile>
+    <SelfContained Condition="'$(Package)' == 'SingleExe'">true</SelfContained>
     <TieredCompilation>true</TieredCompilation>
     <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
     <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
     <RuntimeIdentifiers>linux-x64;osx-x64;</RuntimeIdentifiers>
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>copyused</TrimMode>
+    <PublishTrimmed>false</PublishTrimmed> <!-- Trimming causes PS7 not to initialize -->
     <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
     <DebuggerSupport>true</DebuggerSupport>
     <DebugType>embedded</DebugType>

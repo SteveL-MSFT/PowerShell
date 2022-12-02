@@ -5,6 +5,8 @@
     <Description>PowerShell on Windows top-level project</Description>
     <AssemblyName>pwsh</AssemblyName>
     <OutputType>Exe</OutputType>
+    <PublishSingleFile Condition="'$(Package)' == 'SingleExe'">true</PublishSingleFile>
+    <SelfContained Condition="'$(Package)' == 'SingleExe'">true</SelfContained>
     <TieredCompilation>true</TieredCompilation>
     <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
     <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
