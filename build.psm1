@@ -298,6 +298,7 @@ function Start-PSBuild {
         [switch]$NoPSModuleRestore,
         [switch]$CI,
         [switch]$ForMinimalSize,
+        [switch]$SingleExe,
 
         # Skips the step where the pwsh that's been built is used to create a configuration
         # Useful when changing parsing/compilation, since bugs there can mean we can't get past this step
@@ -316,6 +317,7 @@ function Start-PSBuild {
                      "fxdependent-linux-x64",
                      "fxdependent-linux-arm64",
                      "fxdependent-win-desktop",
+                     "fxdependent-osx-arm64",
                      "linux-arm",
                      "linux-arm64",
                      "linux-x64",
@@ -547,6 +549,10 @@ Fix steps:
     try {
         # Relative paths do not work well if cwd is not changed to project
         Push-Location $Options.Top
+
+        if ($SingleExe) {
+            $Arguments += "/property:Package=SingleExe"
+        }
 
         if ($Options.Runtime -notlike 'fxdependent*' -or $Options.Runtime -match $optimizedFddRegex) {
             Write-Verbose "Building without shim" -Verbose
@@ -907,6 +913,7 @@ function New-PSOptions {
                      "fxdependent-linux-x64",
                      "fxdependent-linux-arm64",
                      "fxdependent-win-desktop",
+                     "fxdependent-osx-arm64",
                      "linux-arm",
                      "linux-arm64",
                      "linux-x64",
