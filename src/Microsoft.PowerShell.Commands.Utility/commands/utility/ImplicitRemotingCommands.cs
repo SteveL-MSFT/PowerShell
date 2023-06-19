@@ -233,16 +233,13 @@ namespace Microsoft.PowerShell.Commands
 
         private const string importModuleScript = @"
                 param($name, $session, $prefix, $disableNameChecking)
-                Import-Module -Name $name -Alias * -Function * -Prefix $prefix -DisableNameChecking:$disableNameChecking -PassThru -ArgumentList @($session)
+                Import-Module -Name $name -Alias * -Function * -Prefix $prefix -DisableNameChecking:$disableNameChecking -PassThru -ArgumentList @($session) -ErrorAction Stop
             ";
 
         private PSModuleInfo CreateModule(string manifestFile)
         {
             ScriptBlock script = this.Context.Engine.ParseScriptBlock(importModuleScript, false);
             Collection<PSObject> results = script.Invoke(manifestFile, this.Session, this.Prefix, _disableNameChecking);
-            Dbg.Assert(results != null, "Import-Module should always succeed");
-            Dbg.Assert(results.Count == 1, "Import-Module should always succeed");
-            Dbg.Assert(results[0].BaseObject is PSModuleInfo, "Import-Module should always succeed");
             return (PSModuleInfo)(results[0].BaseObject);
         }
 
