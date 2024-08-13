@@ -176,6 +176,8 @@ namespace Microsoft.PowerShell
             "command",
             "commandwithargs",
             "configurationname",
+            "configurationget",
+            "configurationset",
             "custompipename",
             "encodedcommand",
             "executionpolicy",
@@ -232,6 +234,8 @@ namespace Microsoft.PowerShell
             ConfigurationFile   = 0x04000000, // -ConfigurationFile
             NoProfileLoadTime   = 0x08000000, // -NoProfileLoadTime
             CommandWithArgs     = 0x10000000, // -CommandWithArgs | -cwa
+            ConfigurationGet    = 0x20000000, // -ConfigurationGet
+            ConfigurationSet    = 0x40000000, // -ConfigurationSet
             // Enum values for specified ExecutionPolicy
             EPUnrestricted      = 0x0000000100000000, // ExecutionPolicy unrestricted
             EPRemoteSigned      = 0x0000000200000000, // ExecutionPolicy remote signed
@@ -398,6 +402,24 @@ namespace Microsoft.PowerShell
                 {
                     _configurationName = value;
                 }
+            }
+        }
+
+        internal bool ConfigurationGet
+        {
+            get
+            {
+                AssertArgumentsParsed();
+                return _configurationGet;
+            }
+        }
+
+        internal string? ConfigurationSet
+        {
+            get
+            {
+                AssertArgumentsParsed();
+                return _configurationSet;
             }
         }
 
@@ -970,6 +992,31 @@ namespace Microsoft.PowerShell
                     _configurationName = args[i];
                     ParametersUsed |= ParameterBitmap.ConfigurationName;
                 }
+                else if (MatchSwitch(switchKey, "configurationget", "configurationget"))
+                {
+                    // check if any other parameters are specified
+                    if (ParametersUsed != 0)
+                    {
+                        SetCommandLineError(
+                            CommandLineParameterParserStrings.ConfigurationConflict);
+                        break;
+                    }
+                    _configurationGet = true;
+                    ParametersUsed |= ParameterBitmap.ConfigurationGet;
+                }
+                else if (MatchSwitch(switchKey, "configurationset", "configurationset"))
+                {
+                    ++i;
+                    if (i >= args.Length)
+                    {
+                        SetCommandLineError(
+                            CommandLineParameterParserStrings.MissingConfigurationSetArgument);
+                        break;
+                    }
+
+                    _configurationSet = args[i];
+                    ParametersUsed |= ParameterBitmap.ConfigurationSet;
+                }
                 else if (MatchSwitch(switchKey, "custompipename", "cus"))
                 {
                     ++i;
@@ -1537,6 +1584,9 @@ namespace Microsoft.PowerShell
         private bool _showVersion;
         private string? _configurationFile;
         private string? _configurationName;
+        private bool _configurationGet;
+        private string? _configurationSet;
+
         private string? _error;
         private bool _showHelp;
         private bool _showExtendedHelp;

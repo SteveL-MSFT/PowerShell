@@ -185,6 +185,11 @@ namespace Microsoft.PowerShell
                     return 0;
                 }
 
+                if (s_cpp.ConfigurationGet || s_cpp.ConfigurationSet)
+                {
+
+                }
+
                 // Servermode parameter validation check.
                 if ((s_cpp.ServerMode && s_cpp.NamedPipeServerMode) || (s_cpp.ServerMode && s_cpp.SocketServerMode) || (s_cpp.NamedPipeServerMode && s_cpp.SocketServerMode))
                 {
@@ -197,7 +202,7 @@ namespace Microsoft.PowerShell
 #if !UNIX
                 TaskbarJumpList.CreateRunAsAdministratorJumpList();
 #endif
-                // First check for and handle PowerShell running in a server mode.
+                // Check for and handle PowerShell running in a server mode.
                 if (s_cpp.ServerMode)
                 {
                     ApplicationInsightsTelemetry.SendPSCoreStartupTelemetry("ServerMode", s_cpp.ParametersUsedAsDouble);

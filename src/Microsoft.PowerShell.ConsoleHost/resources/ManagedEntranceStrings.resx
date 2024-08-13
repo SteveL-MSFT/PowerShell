@@ -120,6 +120,9 @@
   <data name="ShellBannerNonWindowsPowerShell" xml:space="preserve">
     <value>PowerShell {0}</value>
   </data>
+  <data name="ConfigurationConflict" xml:space="preserve">
+    <value>The configuration parameters '-ConfigurationGet' and '-ConfigurationSet' are standalone parameters and cannot be used with other parameters.</value>
+  </data>
   <data name="ShellBannerCLMode" xml:space="preserve">
     <value>[Constrained Language Mode]</value>
   </data>
@@ -159,12 +162,13 @@
                                 | &lt;string&gt; [&lt;CommandParameters&gt;] } ]
                   [-CommandWithArgs &lt;string&gt; [&lt;CommandParameters&gt;]
                   [-ConfigurationName &lt;string&gt;] [-ConfigurationFile &lt;filePath&gt;]
+                  [-ConfigurationGet] | [-ConfigurationSet &lt;string&gt;]
                   [-CustomPipeName &lt;string&gt;] [-EncodedCommand &lt;Base64EncodedCommand&gt;]
                   [-ExecutionPolicy &lt;ExecutionPolicy&gt;] [-InputFormat {Text | XML}]
                   [-Interactive] [-MTA] [-NoExit] [-NoLogo] [-NonInteractive] [-NoProfile]
-                  [-NoProfileLoadTime] [-OutputFormat {Text | XML}] 
-                  [-SettingsFile &lt;filePath&gt;] [-SSHServerMode] [-STA] 
-                  [-Version] [-WindowStyle &lt;style&gt;] 
+                  [-NoProfileLoadTime] [-OutputFormat {Text | XML}]
+                  [-SettingsFile &lt;filePath&gt;] [-SSHServerMode] [-STA]
+                  [-Version] [-WindowStyle &lt;style&gt;]
                   [-WorkingDirectory &lt;directoryPath&gt;]
 
        pwsh[.exe] -h | -Help | -? | /?
@@ -329,6 +333,15 @@ All parameters are case-insensitive.</value>
     session.
 
     Example: "pwsh -ConfigurationFile "C:\ProgramData\PowerShell\MyConfig.pssc"
+
+-ConfigurationGet
+
+    Retrieves the current configuration JSON.
+
+-ConfigurationSet
+
+    Sets the configuration JSON. The JSON must be a valid PowerShell
+    configuration JSON.
 
 -CustomPipeName
 
