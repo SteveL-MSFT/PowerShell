@@ -185,7 +185,7 @@ namespace Microsoft.PowerShell
                     return 0;
                 }
 
-                if (s_cpp.ConfigurationGet || s_cpp.ConfigurationSet)
+                if (s_cpp.ConfigurationExport || s_cpp.ConfigurationGet || s_cpp.ConfigurationSet)
                 {
 
                 }

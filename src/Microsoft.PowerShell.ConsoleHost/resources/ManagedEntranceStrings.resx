@@ -121,7 +121,7 @@
     <value>PowerShell {0}</value>
   </data>
   <data name="ConfigurationConflict" xml:space="preserve">
-    <value>The configuration parameters '-ConfigurationGet' and '-ConfigurationSet' are standalone parameters and cannot be used with other parameters.</value>
+    <value>The configuration parameters '-ConfigurationGet', '-ConfigurationSet', and '-ConfigurationSchema' are standalone parameters and cannot be used with other parameters.</value>
   </data>
   <data name="ShellBannerCLMode" xml:space="preserve">
     <value>[Constrained Language Mode]</value>

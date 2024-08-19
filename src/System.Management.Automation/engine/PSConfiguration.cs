@@ -590,6 +590,71 @@ namespace System.Management.Automation.Configuration
                 UpdateValueInFile<T>(scope, key, default(T), false);
             }
         }
+
+        internal string GetConfiguration()
+        {
+            try
+            {
+                // Open file for reading, but allow multiple readers
+                fileLock.EnterReadLock();
+
+                // read the file and return the content
+                if (Utils.IsAdministrator())
+                {
+                    return File.ReadAllText(systemWideConfigFile);
+                }
+                else
+                {
+                    return File.ReadAllText(perUserConfigFile);
+                }
+            }
+            finally
+            {
+                fileLock.ExitReadLock();
+            }
+        }
+
+        internal void SetConfiguration(string content)
+        {
+            try
+            {
+                // Open file for writing, but allow only one writer
+                fileLock.EnterWriteLock();
+
+                // write the content to the file
+                if (Utils.IsAdministrator())
+                {
+                    File.WriteAllText(systemWideConfigFile, content);
+                }
+                else
+                {
+                    if (!Directory.Exists(perUserConfigDirectory))
+                    {
+                        Directory.CreateDirectory(perUserConfigDirectory);
+                    }
+
+                    File.WriteAllText(perUserConfigFile, content);
+                }
+
+                // Clear the cache
+                configRoots[(int)ConfigScope.AllUsers] = null;
+                configRoots[(int)ConfigScope.CurrentUser] = null;
+            }
+            finally
+            {
+                fileLock.ExitWriteLock();
+            }
+        }
+
+        internal string GetConfigurationSchema()
+        {
+            // return the JSON schema, but dynamically get the list of experimental features
+            string experimentalFeatures = string.Join("\",\n    \"", GetExperimentalFeatures());
+            return @"
+
+
+"@;
+        }
     }
 
     #region GroupPolicy Configs
