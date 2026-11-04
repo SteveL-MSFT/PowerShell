@@ -98,6 +98,56 @@ namespace PSTests.Parallel
             }
         }
 
+        [Theory]
+        [InlineData("-command", "Write-Output", "hello")]
+        [InlineData("-c", "'hello world'")]
+        [InlineData("--COMMAND", "if ($true) {\n'hello'\n}")]
+        [InlineData("-comm", "")]
+        public static void TestRunspaceClientCommand(params string[] arguments)
+        {
+            var cpp = new CommandLineParameterParser();
+            var commandLine = new List<string> { "-ConnectToServer", "test-pipe" };
+            commandLine.AddRange(arguments);
+            cpp.Parse(commandLine.ToArray());
+
+            Assert.False(cpp.AbortStartup);
+            Assert.Equal("test-pipe", cpp.ConnectToServer);
+            Assert.Equal(string.Join(' ', arguments, 1, arguments.Length - 1), cpp.InitialCommand);
+            Assert.True(cpp.SkipProfiles);
+            Assert.False(cpp.ShowBanner);
+            Assert.True(CommandLineParameterParser.IsRunspaceClientCommandLine(commandLine.ToArray()));
+        }
+
+        [Theory]
+        [InlineData("-ConnectToServer", "pipe", "-Command")]
+        [InlineData("-ConnectToServer", "pipe", "-NoLogo", "-Command", "'hello'")]
+        [InlineData("-RunspaceServer", "pipe", "-Command", "'hello'")]
+        public static void TestRunspacePipeCommandConflicts(params string[] arguments)
+        {
+            var cpp = new CommandLineParameterParser();
+            cpp.Parse(arguments);
+            Assert.True(cpp.AbortStartup);
+            Assert.Equal((uint)ConsoleHost.ExitCodeBadCommandLineParameter, cpp.ExitCode);
+        }
+
+        [Fact]
+        public static void TestRunspaceClientCommandFromStdin()
+        {
+            var cpp = new CommandLineParameterParser { InputRedirectedTestHook = true };
+            cpp.Parse(new[] { "-ConnectToServer", "pipe", "-Command", "-" });
+            Assert.False(cpp.AbortStartup);
+            Assert.Equal("pipe", cpp.ConnectToServer);
+            Assert.Null(cpp.InitialCommand);
+            Assert.True(cpp.ExplicitReadCommandsFromStdin);
+            Assert.True(cpp.SkipProfiles);
+            Assert.False(cpp.ShowBanner);
+
+            var invalid = new CommandLineParameterParser { InputRedirectedTestHook = false };
+            invalid.Parse(new[] { "-ConnectToServer", "pipe", "-Command", "-" });
+            Assert.True(invalid.AbortStartup);
+            Assert.Equal(CommandLineParameterParserStrings.StdinNotRedirected, invalid.ErrorMessage);
+        }
+
         [Fact]
         public static void TestDefaults()
         {

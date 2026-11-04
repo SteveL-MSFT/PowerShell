@@ -7,7 +7,7 @@ Describe 'Runspace server command-line modes' -Tag 'CI' {
         $processes = [System.Collections.Generic.List[System.Diagnostics.Process]]::new()
 
         function Start-PipeProcess {
-            param([string]$Parameter, [string]$PipeName)
+            param([string]$Parameter, [string]$PipeName, [string]$Command)
 
             $startInfo = [System.Diagnostics.ProcessStartInfo]::new($powershell)
             $startInfo.UseShellExecute = $false
@@ -19,6 +19,10 @@ Describe 'Runspace server command-line modes' -Tag 'CI' {
             $startInfo.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
             $startInfo.ArgumentList.Add($Parameter)
             $startInfo.ArgumentList.Add($PipeName)
+            if ($PSBoundParameters.ContainsKey('Command')) {
+                $startInfo.ArgumentList.Add('-Command')
+                $startInfo.ArgumentList.Add($Command)
+            }
             $process = [System.Diagnostics.Process]::Start($startInfo)
             $processes.Add($process)
             @{
@@ -31,19 +35,33 @@ Describe 'Runspace server command-line modes' -Tag 'CI' {
         function Start-PipePair {
             $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
             @{
+                PipeName = $pipeName
                 Server = Start-PipeProcess '-RunspaceServer' $pipeName
                 Client = Start-PipeProcess '-ConnectToServer' $pipeName
             }
         }
 
         function Complete-PipePair {
-            param($Pair, [int]$ExitCode = 0)
+            param($Pair, [int]$ExitCode = 0, [switch]$ServerExits)
 
             $Pair.Client.Process.StandardInput.Close()
             $Pair.Client.Process.WaitForExit(15000) | Should -BeTrue
-            $Pair.Server.Process.WaitForExit(15000) | Should -BeTrue
             $Pair.Client.Process.ExitCode | Should -Be $ExitCode
-            $Pair.Server.Process.ExitCode | Should -Be $ExitCode
+            if (!$ServerExits) {
+                $Pair.Server.Process.WaitForExit(300) | Should -BeFalse
+                $shutdown = Start-PipeProcess '-ConnectToServer' $Pair.PipeName -Command 'exit'
+                $shutdown.Process.WaitForExit(15000) | Should -BeTrue
+                $shutdown.Process.ExitCode | Should -Be 0
+                $shutdown.Output.GetAwaiter().GetResult() | Should -BeExactly ''
+                $shutdown.Error.GetAwaiter().GetResult() | Should -BeExactly ''
+                $Pair.Server.Process.WaitForExit(15000) | Should -BeTrue
+                $Pair.Server.Process.ExitCode | Should -Be 0
+            }
+            else {
+                $Pair.Server.Process.WaitForExit(15000) | Should -BeTrue
+                $Pair.Server.Process.ExitCode | Should -Be $ExitCode
+            }
+
             $Pair.Server.Output.GetAwaiter().GetResult() | Should -BeExactly ''
             $Pair.Server.Error.GetAwaiter().GetResult() | Should -BeExactly ''
         }
@@ -78,6 +96,7 @@ Describe 'Runspace server command-line modes' -Tag 'CI' {
         $server.Process.StandardInput.WriteLine("throw 'server-stdin-must-not-execute'")
         $server.Process.WaitForExit(500) | Should -BeFalse
         $pair = @{
+            PipeName = $pipeName
             Server = $server
             Client = Start-PipeProcess '-ConnectToServer' $pipeName
         }
@@ -148,7 +167,7 @@ Describe 'Runspace server command-line modes' -Tag 'CI' {
         $pair.Client.Error.GetAwaiter().GetResult() | Should -BeExactly $text
     }
 
-    It 'exits cleanly when client stdin is empty' {
+    It 'exits the client but keeps the server alive when client stdin is empty' {
         $pair = Start-PipePair
         Complete-PipePair $pair
 
@@ -161,7 +180,7 @@ Describe 'Runspace server command-line modes' -Tag 'CI' {
         $pair.Client.Process.StandardInput.WriteLine('exit 7')
         $pair.Client.Process.StandardInput.Flush()
         $pair.Client.Process.WaitForExit(15000) | Should -BeTrue
-        Complete-PipePair $pair -ExitCode 7
+        Complete-PipePair $pair -ExitCode 7 -ServerExits
 
         $pair.Client.Output.GetAwaiter().GetResult() | Should -BeExactly ''
         $pair.Client.Error.GetAwaiter().GetResult() | Should -BeExactly ''
@@ -196,6 +215,7 @@ Describe 'Runspace server command-line modes' -Tag 'CI' {
             $client = Start-PipeProcess '-ConnectToServer' $pipeName
             $connection = $fakeServer.WaitForConnectionAsync()
             $connection.Wait(15000) | Should -BeTrue
+            $fakeServer.Write([byte[]]@(6, 0, 0, 0, 0))
             $fakeServer.Write([byte[]]@(2, 255, 255, 255, 255))
             $fakeServer.Flush()
             $client.Process.WaitForExit(15000) | Should -BeTrue
@@ -207,5 +227,152 @@ Describe 'Runspace server command-line modes' -Tag 'CI' {
         finally {
             $fakeServer.Dispose()
         }
+    }
+
+    It 'executes one-shot commands in the same runspace across client connections' {
+        $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
+        $server = Start-PipeProcess '-RunspaceServer' $pipeName
+        foreach ($command in @('$value = 40; function Test-Persistent { $value + 2 }', 'Test-Persistent')) {
+            $client = Start-PipeProcess '-ConnectToServer' $pipeName -Command $command
+            $client.Process.WaitForExit(15000) | Should -BeTrue
+            $client.Process.ExitCode | Should -Be 0
+            $client.Error.GetAwaiter().GetResult() | Should -BeExactly ''
+            $server.Process.HasExited | Should -BeFalse
+        }
+
+        $client.Output.GetAwaiter().GetResult() | Should -BeExactly "42$([Environment]::NewLine)"
+        $streamed = Start-PipeProcess '-ConnectToServer' $pipeName
+        $streamed.Process.StandardInput.WriteLine('Test-Persistent')
+        $streamed.Process.StandardInput.Close()
+        $streamed.Process.WaitForExit(15000) | Should -BeTrue
+        $streamed.Process.ExitCode | Should -Be 0
+        $streamed.Output.GetAwaiter().GetResult() | Should -BeExactly "42$([Environment]::NewLine)"
+        $streamed.Error.GetAwaiter().GetResult() | Should -BeExactly ''
+        $server.Process.HasExited | Should -BeFalse
+        $shutdown = Start-PipeProcess '-ConnectToServer' $pipeName -Command 'exit 7'
+        $shutdown.Process.WaitForExit(15000) | Should -BeTrue
+        $server.Process.WaitForExit(15000) | Should -BeTrue
+        $shutdown.Process.ExitCode | Should -Be 7
+        $server.Process.ExitCode | Should -Be 7
+    }
+
+    It 'executes a multiline command as one script without reading client stdin' {
+        $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
+        $server = Start-PipeProcess '-RunspaceServer' $pipeName
+        $client = Start-PipeProcess '-ConnectToServer' $pipeName -Command "if (`$true) {`n[Console]::Out.Write('one-shot')`n}`n[Console]::Error.Write('command-error')"
+        $pair = @{ PipeName = $pipeName; Server = $server; Client = $client }
+        $client.Process.WaitForExit(15000) | Should -BeTrue
+        Complete-PipePair $pair
+
+        $client.Output.GetAwaiter().GetResult() | Should -BeExactly 'one-shot'
+        $client.Error.GetAwaiter().GetResult() | Should -BeExactly 'command-error'
+    }
+
+    It 'forwards a one-shot command larger than a packet and executes it in the server process' {
+        $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
+        $server = Start-PipeProcess '-RunspaceServer' $pipeName
+        $text = ([string][char]0x00E9 + [char]0x03BB + [char]0x4E2D) * 10000
+        $client = Start-PipeProcess '-ConnectToServer' $pipeName -Command "[Console]::Out.Write('$text'); [Console]::Error.Write('$text'); `$PID"
+        $pair = @{ PipeName = $pipeName; Server = $server; Client = $client }
+        $client.Process.WaitForExit(15000) | Should -BeTrue
+        Complete-PipePair $pair
+
+        $client.Output.GetAwaiter().GetResult() | Should -BeExactly "$text$($server.Process.Id)$([Environment]::NewLine)"
+        $client.Error.GetAwaiter().GetResult() | Should -BeExactly $text
+    }
+
+    It 'returns a failing command status without shutting down the server' {
+        $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
+        $server = Start-PipeProcess '-RunspaceServer' $pipeName
+        $client = Start-PipeProcess '-ConnectToServer' $pipeName -Command "throw 'command-failed'"
+        Complete-PipePair @{ PipeName = $pipeName; Server = $server; Client = $client } -ExitCode 1
+
+        $client.Error.GetAwaiter().GetResult() | Should -Match 'command-failed'
+    }
+
+    It 'preserves command success state when returning results to the client' {
+        $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
+        $server = Start-PipeProcess '-RunspaceServer' $pipeName
+        $failed = Start-PipeProcess '-ConnectToServer' $pipeName -Command "Write-Error 'failed'"
+        $failed.Process.WaitForExit(15000) | Should -BeTrue
+        $failed.Process.ExitCode | Should -Be 1
+        $failed.Error.GetAwaiter().GetResult() | Should -Match 'failed'
+        $next = Start-PipeProcess '-ConnectToServer' $pipeName -Command '$?'
+        Complete-PipePair @{ PipeName = $pipeName; Server = $server; Client = $next }
+
+        $next.Output.GetAwaiter().GetResult() | Should -BeExactly "False$([Environment]::NewLine)"
+        $next.Error.GetAwaiter().GetResult() | Should -BeExactly ''
+    }
+
+    It 'accepts empty, whitespace, and comment-only commands without shutting down the server' {
+        $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
+        $server = Start-PipeProcess '-RunspaceServer' $pipeName
+        foreach ($command in @('', ' ', '# comment')) {
+            $client = Start-PipeProcess '-ConnectToServer' $pipeName -Command $command
+            $client.Process.WaitForExit(15000) | Should -BeTrue
+            $client.Process.ExitCode | Should -Be 0
+            $client.Output.GetAwaiter().GetResult() | Should -BeExactly ''
+            $client.Error.GetAwaiter().GetResult() | Should -BeExactly ''
+            $server.Process.HasExited | Should -BeFalse
+        }
+
+        Complete-PipePair @{ PipeName = $pipeName; Server = $server; Client = $client }
+    }
+
+    It 'keeps state and accepts another client after an abrupt disconnect' {
+        $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
+        $server = Start-PipeProcess '-RunspaceServer' $pipeName
+        $client = Start-PipeProcess '-ConnectToServer' $pipeName
+        $markerPath = Join-Path $TestDrive 'persistent-state'
+        $escapedPath = $markerPath.Replace("'", "''")
+        $client.Process.StandardInput.WriteLine("`$value = 123; [IO.File]::WriteAllText('$escapedPath', 'ready'); Start-Sleep -Milliseconds 500; [Console]::Out.Write('x' * 100000); [Console]::Error.Write('y' * 100000); `$value++")
+        $client.Process.StandardInput.Flush()
+        $timer = [System.Diagnostics.Stopwatch]::StartNew()
+        while (!(Test-Path $markerPath) -and $timer.ElapsedMilliseconds -lt 15000) {
+            Start-Sleep -Milliseconds 50
+        }
+
+        $markerPath | Should -Exist
+        $client.Process.Kill()
+        $client.Process.WaitForExit()
+        $next = Start-PipeProcess '-ConnectToServer' $pipeName -Command '$value'
+        $next.Process.WaitForExit(15000) | Should -BeTrue
+        $next.Process.ExitCode | Should -Be 0
+        $next.Output.GetAwaiter().GetResult() | Should -BeExactly "124$([Environment]::NewLine)"
+        $next.Error.GetAwaiter().GetResult() | Should -BeExactly ''
+        $server.Process.HasExited | Should -BeFalse
+        $shutdown = Start-PipeProcess '-ConnectToServer' $pipeName -Command 'exit'
+        $shutdown.Process.WaitForExit(15000) | Should -BeTrue
+        $server.Process.WaitForExit(15000) | Should -BeTrue
+        $server.Process.ExitCode | Should -Be 0
+        $server.Error.GetAwaiter().GetResult() | Should -Not -BeNullOrEmpty
+    }
+
+    It 'accepts another client after rejecting malformed client packets' {
+        $pipeName = 'ps-test-' + [guid]::NewGuid().ToString('N')
+        $server = Start-PipeProcess '-RunspaceServer' $pipeName
+        $badClient = [System.IO.Pipes.NamedPipeClientStream]::new('.', $pipeName, [System.IO.Pipes.PipeDirection]::InOut)
+        try {
+            $badClient.Connect(15000)
+            $ready = [byte[]]::new(5)
+            $badClient.ReadExactly($ready)
+            $badClient.Write([byte[]]@(255, 0, 0, 0, 0))
+            $badClient.Flush()
+        }
+        finally {
+            $badClient.Dispose()
+        }
+
+        $next = Start-PipeProcess '-ConnectToServer' $pipeName -Command "'after-malformed'"
+        $next.Process.WaitForExit(15000) | Should -BeTrue
+        $next.Output.GetAwaiter().GetResult() | Should -BeExactly "after-malformed$([Environment]::NewLine)"
+        $next.Error.GetAwaiter().GetResult() | Should -BeExactly ''
+        $next.Process.ExitCode | Should -Be 0
+        $server.Process.HasExited | Should -BeFalse
+        $shutdown = Start-PipeProcess '-ConnectToServer' $pipeName -Command 'exit'
+        $shutdown.Process.WaitForExit(15000) | Should -BeTrue
+        $server.Process.WaitForExit(15000) | Should -BeTrue
+        $server.Process.ExitCode | Should -Be 0
+        $server.Error.GetAwaiter().GetResult() | Should -Match 'invalid transport packet'
     }
 }
