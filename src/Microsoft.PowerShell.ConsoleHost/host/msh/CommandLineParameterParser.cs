@@ -895,7 +895,7 @@ namespace Microsoft.PowerShell
         }
 
         internal static bool IsRunspaceClientCommandLine(string[] args)
-            => args.Length == 2 && string.Equals(GetPipeSwitchKey(args[0]), "connecttoserver", StringComparison.OrdinalIgnoreCase);
+            => args.Length >= 2 && string.Equals(GetPipeSwitchKey(args[0]), "connecttoserver", StringComparison.OrdinalIgnoreCase);
 
         internal static int GetRunspacePipeNameLimit()
         {
@@ -962,7 +962,9 @@ namespace Microsoft.PowerShell
                     return;
                 }
 
-                if (i != 0 || args.Length != 2)
+                bool hasCommand = !isServer && args.Length > 2
+                    && MatchSwitch(GetPipeSwitchKey(args[2]), "command", "c");
+                if (i != 0 || (args.Length != 2 && !hasCommand))
                 {
                     SetCommandLineError(CommandLineParameterParserStrings.RunspacePipeExclusiveArguments);
                     return;
@@ -982,6 +984,17 @@ namespace Microsoft.PowerShell
                 {
                     SetCommandLineError(CommandLineParameterParserStrings.FileOnlyEntryServerMode);
                     return;
+                }
+
+                if (hasCommand)
+                {
+                    int commandIndex = 2;
+                    if (!ParseCommand(args, ref commandIndex, noexitSeen: false, isEncoded: false))
+                    {
+                        return;
+                    }
+
+                    ParametersUsed |= ParameterBitmap.Command;
                 }
 
                 if (isServer)

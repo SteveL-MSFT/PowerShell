@@ -147,7 +147,7 @@
                   [-WorkingDirectory &lt;directoryPath&gt;]
 
        pwsh[.exe] -RunspaceServer &lt;name&gt;
-       pwsh[.exe] -ConnectToServer &lt;name&gt;
+       pwsh[.exe] -ConnectToServer &lt;name&gt; [-Command &lt;string&gt;]
        pwsh[.exe] -h | -Help | -? | /?
 
 PowerShell Online Help https://aka.ms/powershell-docs
@@ -159,9 +159,10 @@ All parameters are case-insensitive.</value>
 
 -RunspaceServer &lt;name&gt;
 
-    Creates a local named pipe and waits for one client connection. Commands
-    received from the client run in a persistent PowerShell session. The server
-    exits when client input ends or an exit command is executed.
+    Creates a local named pipe and waits for client connections. Commands run
+    in the same persistent PowerShell session across connections. Ending client
+    input or disconnecting a client leaves the server listening for another
+    client. Only an explicit exit command shuts down the server.
 
 -ConnectToServer &lt;name&gt;
 
@@ -170,8 +171,12 @@ All parameters are case-insensitive.</value>
     standard error are forwarded to the corresponding client streams. A
     connection must be established within 30 seconds.
 
-    These parameters imply -NoLogo and -NoProfile and must each be used alone
-    with a required pipe name. No additional arguments are allowed. Connections
+    With -Command (or -c), the command and its remaining arguments are forwarded
+    as one script. Results are returned and the client exits without shutting
+    down the server. Use -Command - to read commands from redirected stdin.
+
+    These parameters imply -NoLogo and -NoProfile and require a pipe name.
+    Only -ConnectToServer accepts the additional -Command argument. Connections
     are restricted to the same user (and elevation level on Windows).
 
 -File | -f

@@ -125,7 +125,7 @@ namespace Microsoft.PowerShell
 
             if (s_cpp.ConnectToServer != null)
             {
-                return RunspacePipe.Connect(s_cpp.ConnectToServer);
+                return RunspacePipe.Connect(s_cpp.ConnectToServer, s_cpp.InitialCommand);
             }
 
             // Put pwsh executable home in front of PATH so that calling `pwsh` within `pwsh` always starts the same running version.
@@ -2693,22 +2693,42 @@ namespace Microsoft.PowerShell
                                 ui.WriteLine();
                             }
 
-                            if (IsRunspaceServer && inBlockMode)
+                            if (IsRunspaceServer)
                             {
-                                _exec.ExecuteCommandAsync(
-                                    inputBlock.ToString(),
-                                    out Exception parseException,
-                                    Executor.ExecutionOptions.AddOutputter);
-                                if (parseException != null)
+                                string command = RunspacePipe.PendingCommand;
+                                bool failed = false;
+                                if (!RunspacePipe.ClientDisconnected && (command is { Length: > 0 } || inBlockMode))
                                 {
-                                    _parent.ReportExceptionFallback(parseException, null);
-                                    _parent.SetShouldExit(1);
+                                    _exec.ExecuteCommandAsync(
+                                        command ?? inputBlock.ToString(),
+                                        out Exception commandException,
+                                        Executor.ExecutionOptions.AddOutputter | Executor.ExecutionOptions.AddToHistory);
+                                    if (commandException != null)
+                                    {
+                                        _parent.ReportExceptionFallback(commandException, null);
+                                        failed = true;
+                                    }
                                 }
+
+                                if (_parent.ShouldEndSession)
+                                {
+                                    break;
+                                }
+
+                                int status = command == string.Empty ? 0
+                                    : failed || !_parent.Runspace.ExecutionContext.QuestionMarkVariableValue ? 1 : 0;
+                                RunspacePipe.Reconnect(status);
+                                _parent.ConsoleIn = new Lazy<TextReader>(static () => Console.In);
+                                _parent._outputSerializer = null;
+                                _parent._errorSerializer = null;
+                                inBlockMode = false;
+                                inputBlock.Clear();
+                                continue;
                             }
 
                             inBlockMode = false;
 
-                            if (IsRunspaceServer || Console.IsInputRedirected)
+                            if (Console.IsInputRedirected)
                             {
                                 // null is also the result of reading stdin to EOF.
                                 _parent.ShouldEndSession = true;
@@ -3118,7 +3138,7 @@ namespace Microsoft.PowerShell
         private bool _isDisposed;
         internal ConsoleHostUserInterface ui;
 
-        internal Lazy<TextReader> ConsoleIn { get; } = new Lazy<TextReader>(static () => Console.In);
+        internal Lazy<TextReader> ConsoleIn { get; private set; } = new Lazy<TextReader>(static () => Console.In);
 
         private string _savedWindowTitle = string.Empty;
         private readonly Version _ver = PSVersionInfo.PSVersion;

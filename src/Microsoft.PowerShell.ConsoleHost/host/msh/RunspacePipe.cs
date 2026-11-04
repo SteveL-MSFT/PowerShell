@@ -3,6 +3,7 @@
 
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
@@ -20,6 +21,17 @@ namespace Microsoft.PowerShell
         private const int BufferSize = 8192;
         private const int ConnectTimeoutMilliseconds = 30000;
         private static readonly Encoding s_encoding = new UTF8Encoding(false);
+        private static ServerConnection s_server;
+
+        internal static string PendingCommand => s_server.Command;
+
+        internal static bool ClientDisconnected => s_server.Disconnected;
+
+        internal static void Reconnect(int exitCode)
+        {
+            s_server.Complete(exitCode);
+            s_server.Accept();
+        }
 
         private enum PacketKind : byte
         {
@@ -28,43 +40,40 @@ namespace Microsoft.PowerShell
             Output,
             Error,
             Exit,
+            Command,
+            Ready,
         }
 
         internal static int RunServer(string name, Func<int> run)
         {
             try
             {
-                using var pipe = new NamedPipeServerStream(
-                    name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
-                    PipeOptions.CurrentUserOnly);
-                pipe.WaitForConnection();
-
-                using var reader = new BinaryReader(pipe, s_encoding, leaveOpen: true);
-                using var writer = new BinaryWriter(pipe, s_encoding, leaveOpen: true);
-                using var input = new StreamReader(new PipeInputStream(reader), s_encoding);
                 TextReader originalInput = Console.In;
                 TextWriter originalOutput = Console.Out;
                 TextWriter originalError = Console.Error;
-                int exitCode;
-
+                using var server = new ServerConnection(name, originalError);
+                s_server = server;
                 try
                 {
-                    using var output = new OutputCapture(pipe, writer, PacketKind.Output, 1);
-                    using var error = new OutputCapture(pipe, writer, PacketKind.Error, 2);
-                    Console.SetIn(input);
-                    Console.SetOut(output.Writer);
-                    Console.SetError(error.Writer);
-                    exitCode = run();
+                    server.Accept();
+                    int exitCode = run();
+                    server.Complete(exitCode);
+                    return exitCode;
                 }
                 finally
                 {
-                    Console.SetIn(originalInput);
-                    Console.SetOut(originalOutput);
-                    Console.SetError(originalError);
+                    try
+                    {
+                        server.Dispose();
+                    }
+                    finally
+                    {
+                        s_server = null;
+                        Console.SetIn(originalInput);
+                        Console.SetOut(originalOutput);
+                        Console.SetError(originalError);
+                    }
                 }
-
-                WritePacket(writer, PacketKind.Exit, BitConverter.GetBytes(exitCode));
-                return exitCode;
             }
             catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or Win32Exception or ObjectDisposedException)
             {
@@ -73,13 +82,11 @@ namespace Microsoft.PowerShell
             }
         }
 
-        internal static int Connect(string name)
+        internal static int Connect(string name, string command)
         {
             try
             {
-                using var pipe = new NamedPipeClientStream(
-                    ".", name, PipeDirection.InOut, PipeOptions.CurrentUserOnly);
-                pipe.Connect(ConnectTimeoutMilliseconds);
+                using var pipe = ConnectPipe(name);
 
                 using var reader = new BinaryReader(pipe, s_encoding, leaveOpen: true);
                 using var writer = new BinaryWriter(pipe, s_encoding, leaveOpen: true);
@@ -87,6 +94,22 @@ namespace Microsoft.PowerShell
                 using Stream error = Console.OpenStandardError();
                 Exception inputError = null;
                 int finished = 0;
+
+                if (command != null)
+                {
+                    byte[] text = s_encoding.GetBytes(command);
+                    for (int offset = 0; offset < text.Length; offset += BufferSize)
+                    {
+                        WritePacket(writer, PacketKind.Command, text.AsSpan(offset, Math.Min(BufferSize, text.Length - offset)));
+                    }
+
+                    if (text.Length == 0)
+                    {
+                        WritePacket(writer, PacketKind.Command, ReadOnlySpan<byte>.Empty);
+                    }
+
+                    WritePacket(writer, PacketKind.EndInput, ReadOnlySpan<byte>.Empty);
+                }
 
                 // Console input cannot be cancelled on every platform. A background thread
                 // lets server exit/disconnection end the client even while stdin is open.
@@ -125,7 +148,10 @@ namespace Microsoft.PowerShell
                     IsBackground = true,
                     Name = "Runspace pipe stdin",
                 };
-                inputThread.Start();
+                if (command == null)
+                {
+                    inputThread.Start();
+                }
 
                 try
                 {
@@ -159,10 +185,56 @@ namespace Microsoft.PowerShell
                     Volatile.Write(ref finished, 1);
                 }
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or TimeoutException)
+            catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or TimeoutException)
             {
                 Console.Error.WriteLine(e.Message);
                 return ConsoleHost.ExitCodeInitFailure;
+            }
+        }
+
+        private static NamedPipeClientStream ConnectPipe(string name)
+        {
+            using var timeout = new CancellationTokenSource(ConnectTimeoutMilliseconds);
+            var timer = Stopwatch.StartNew();
+            while (true)
+            {
+                int remaining = ConnectTimeoutMilliseconds - (int)timer.ElapsedMilliseconds;
+                if (remaining <= 0)
+                {
+                    throw new TimeoutException(ConsoleHostStrings.RunspacePipeConnectTimeout);
+                }
+
+                var pipe = new NamedPipeClientStream(
+                    ".", name, PipeDirection.InOut, PipeOptions.CurrentUserOnly | PipeOptions.Asynchronous);
+                try
+                {
+                    pipe.Connect(remaining);
+                    // On Unix a connection can be queued on the previous client's socket.
+                    // Retry only before the server acknowledges readiness, never after sending commands.
+                    byte[] ready = new byte[sizeof(int) + sizeof(byte)];
+                    pipe.ReadExactlyAsync(ready, timeout.Token).AsTask().GetAwaiter().GetResult();
+                    if (ready[0] != (byte)PacketKind.Ready || BitConverter.ToInt32(ready, 1) != 0)
+                    {
+                        throw new InvalidDataException(ConsoleHostStrings.InvalidRunspacePipePacket);
+                    }
+
+                    return pipe;
+                }
+                catch (IOException)
+                {
+                    pipe.Dispose();
+                    Thread.Sleep(10);
+                }
+                catch (OperationCanceledException e)
+                {
+                    pipe.Dispose();
+                    throw new TimeoutException(ConsoleHostStrings.RunspacePipeConnectTimeout, e);
+                }
+                catch (Exception e) when (e is InvalidDataException or UnauthorizedAccessException or TimeoutException)
+                {
+                    pipe.Dispose();
+                    throw;
+                }
             }
         }
 
@@ -198,13 +270,16 @@ namespace Microsoft.PowerShell
         private sealed class PipeInputStream : Stream
         {
             private readonly BinaryReader _reader;
+            private readonly ServerConnection _connection;
+            private MemoryStream _command;
             private byte[] _input = Array.Empty<byte>();
             private int _offset;
             private bool _atEnd;
 
-            internal PipeInputStream(BinaryReader reader)
+            internal PipeInputStream(BinaryReader reader, ServerConnection connection)
             {
                 _reader = reader;
+                _connection = connection;
             }
 
             public override bool CanRead => true;
@@ -230,15 +305,42 @@ namespace Microsoft.PowerShell
 
                 while (!_atEnd && _offset == _input.Length)
                 {
-                    PacketKind kind = ReadPacket(_reader, out _input);
+                    PacketKind kind;
+                    try
+                    {
+                        kind = ReadPacket(_reader, out _input);
+                    }
+                    catch (Exception e) when (e is IOException or InvalidDataException or ObjectDisposedException)
+                    {
+                        _connection.Disconnect(e);
+                        _input = Array.Empty<byte>();
+                        _offset = 0;
+                        _atEnd = true;
+                        return 0;
+                    }
+
                     _offset = 0;
                     if (kind == PacketKind.EndInput && _input.Length == 0)
                     {
+                        if (_command != null)
+                        {
+                            _connection.Command = s_encoding.GetString(_command.ToArray());
+                        }
+
                         _atEnd = true;
+                    }
+                    else if (kind == PacketKind.Command)
+                    {
+                        _command ??= new MemoryStream();
+                        _command.Write(_input);
+                        _input = Array.Empty<byte>();
                     }
                     else if (kind != PacketKind.Input)
                     {
-                        throw new InvalidDataException(ConsoleHostStrings.InvalidRunspacePipePacket);
+                        _connection.Disconnect(new InvalidDataException(ConsoleHostStrings.InvalidRunspacePipePacket));
+                        _input = Array.Empty<byte>();
+                        _atEnd = true;
+                        return 0;
                     }
                 }
 
@@ -257,6 +359,128 @@ namespace Microsoft.PowerShell
             public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
 
             public override void SetLength(long value) => throw new NotSupportedException();
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    _command?.Dispose();
+                }
+
+                base.Dispose(disposing);
+            }
+        }
+
+        private sealed class ServerConnection : IDisposable
+        {
+            private readonly string _name;
+            private readonly TextWriter _diagnostics;
+            private NamedPipeServerStream _pipe;
+            private BinaryReader _reader;
+            private BinaryWriter _writer;
+            private StreamReader _input;
+            private OutputCapture _output;
+            private OutputCapture _error;
+            private int _disconnected;
+            private Exception _disconnectReason;
+
+            internal ServerConnection(string name, TextWriter diagnostics)
+            {
+                _name = name;
+                _diagnostics = diagnostics;
+            }
+
+            internal string Command { get; set; }
+
+            internal bool Disconnected => Volatile.Read(ref _disconnected) != 0;
+
+            internal void Accept()
+            {
+                Command = null;
+                _disconnectReason = null;
+                Volatile.Write(ref _disconnected, 0);
+                _pipe = new NamedPipeServerStream(
+                    _name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
+                    PipeOptions.CurrentUserOnly);
+                _pipe.WaitForConnection();
+                _reader = new BinaryReader(_pipe, s_encoding, leaveOpen: true);
+                _writer = new BinaryWriter(_pipe, s_encoding, leaveOpen: true);
+                _input = new StreamReader(new PipeInputStream(_reader, this), s_encoding);
+                _output = new OutputCapture(this, PacketKind.Output, 1);
+                _error = new OutputCapture(this, PacketKind.Error, 2);
+                Console.SetIn(_input);
+                Console.SetOut(_output.Writer);
+                Console.SetError(_error.Writer);
+                Send(PacketKind.Ready, ReadOnlySpan<byte>.Empty);
+            }
+
+            internal void Send(PacketKind kind, ReadOnlySpan<byte> payload)
+            {
+                if (Disconnected)
+                {
+                    return;
+                }
+
+                try
+                {
+                    WritePacket(_writer, kind, payload);
+                }
+                catch (Exception e) when (e is IOException or ObjectDisposedException)
+                {
+                    Disconnect(e);
+                }
+            }
+
+            internal void Disconnect(Exception exception)
+            {
+                if (Interlocked.Exchange(ref _disconnected, 1) == 0)
+                {
+                    _disconnectReason = exception;
+                    _pipe.Dispose();
+                }
+            }
+
+            internal void Complete(int exitCode)
+            {
+                try
+                {
+                    // Drain both OS streams before telling the client its command is complete.
+                    _error?.Dispose();
+                    _error = null;
+                    _output?.Dispose();
+                    _output = null;
+                    Send(PacketKind.Exit, BitConverter.GetBytes(exitCode));
+                }
+                finally
+                {
+                    Dispose();
+                    if (_disconnectReason != null)
+                    {
+                        _diagnostics.WriteLine(_disconnectReason.Message);
+                    }
+                }
+            }
+
+            public void Dispose()
+            {
+                _error?.Dispose();
+                _error = null;
+                _output?.Dispose();
+                _output = null;
+                _input?.Dispose();
+                _input = null;
+                _reader?.Dispose();
+                _reader = null;
+                if (!Disconnected)
+                {
+                    _writer?.Dispose();
+                }
+
+                // A disconnected BinaryWriter cannot be flushed; the pipe owns its handle.
+                _writer = null;
+                _pipe?.Dispose();
+                _pipe = null;
+            }
         }
 
         /// <summary>
@@ -270,8 +494,9 @@ namespace Microsoft.PowerShell
             private readonly int _descriptor;
             private readonly Thread _pump;
             private Exception _exception;
+            private bool _disposed;
 
-            internal OutputCapture(PipeStream connection, BinaryWriter writer, PacketKind kind, int descriptor)
+            internal OutputCapture(ServerConnection connection, PacketKind kind, int descriptor)
             {
                 _descriptor = descriptor;
                 _reader = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
@@ -309,14 +534,14 @@ namespace Microsoft.PowerShell
                         int count;
                         while ((count = _reader.Read(buffer, 0, buffer.Length)) > 0)
                         {
-                            WritePacket(writer, kind, buffer.AsSpan(0, count));
+                            connection.Send(kind, buffer.AsSpan(0, count));
                         }
                     }
                     catch (Exception e) when (e is IOException or ObjectDisposedException)
                     {
                         _exception = e;
                         _reader.Dispose();
-                        connection.Dispose();
+                        connection.Disconnect(e);
                     }
                 })
                 {
@@ -330,6 +555,12 @@ namespace Microsoft.PowerShell
 
             public void Dispose()
             {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
                 try
                 {
                     Writer.Dispose();
