@@ -14,6 +14,90 @@ namespace PSTests.Parallel
 {
     public static class PSCommandLineParserTests
     {
+        [Theory]
+        [InlineData("-RunspaceServer", true)]
+        [InlineData("--RUNSPACESERVER", true)]
+        [InlineData("/runspaceserver", true)]
+        [InlineData("-ConnectToServer", false)]
+        [InlineData("--CONNECTTOSERVER", false)]
+        [InlineData("/connecttoserver", false)]
+        public static void TestRunspacePipeMode(string parameter, bool isServer)
+        {
+            var cpp = new CommandLineParameterParser();
+            cpp.Parse(new[] { parameter, "test-pipe" });
+
+            Assert.False(cpp.AbortStartup);
+            Assert.Null(cpp.ErrorMessage);
+            Assert.False(cpp.ShowBanner);
+            Assert.True(cpp.SkipProfiles);
+            Assert.False(cpp.NonInteractive);
+            Assert.Equal(isServer ? "test-pipe" : null, cpp.RunspaceServer);
+            Assert.Equal(isServer ? null : "test-pipe", cpp.ConnectToServer);
+            Assert.Equal(
+                isServer ? CommandLineParameterParser.ParameterBitmap.RunspaceServer : CommandLineParameterParser.ParameterBitmap.ConnectToServer,
+                cpp.ParametersUsed);
+            if (isServer)
+            {
+                Assert.True(cpp.ExplicitReadCommandsFromStdin);
+                Assert.True(cpp.NoPrompt);
+                Assert.True(cpp.NoExit);
+            }
+        }
+
+        [Theory]
+        [InlineData("-RunspaceServer")]
+        [InlineData("-ConnectToServer")]
+        [InlineData("-RunspaceServer", "")]
+        [InlineData("-ConnectToServer", " ")]
+        [InlineData("-RunspaceServer", "-NoLogo")]
+        [InlineData("-ConnectToServer", "-NoProfile")]
+        [InlineData("-RunspaceServer", "pipe", "-NoLogo")]
+        [InlineData("-NoProfile", "-ConnectToServer", "pipe")]
+        [InlineData("-Version", "-RunspaceServer", "pipe")]
+        [InlineData("-Help", "-ConnectToServer", "pipe")]
+        [InlineData("-Command", "'ignored'", "-RunspaceServer", "pipe")]
+        [InlineData("-RunspaceServer", "pipe", "-ConnectToServer", "pipe")]
+        [InlineData("-ConnectToServer", "pipe", "extra")]
+        [InlineData("-RunspaceServer", "path/name")]
+        [InlineData("-ConnectToServer", "path\\name")]
+        [InlineData("-RunspaceServer", "anonymous")]
+        [InlineData("-ConnectToServer", "name\0")]
+        public static void TestRunspacePipeInvalidArguments(params string[] arguments)
+        {
+            var cpp = new CommandLineParameterParser();
+            cpp.Parse(arguments);
+
+            Assert.True(cpp.AbortStartup);
+            Assert.Equal((uint)ConsoleHost.ExitCodeBadCommandLineParameter, cpp.ExitCode);
+            Assert.NotNull(cpp.ErrorMessage);
+            Assert.Null(cpp.RunspaceServer);
+            Assert.Null(cpp.ConnectToServer);
+        }
+
+        [Theory]
+        [InlineData("-RunspaceServer")]
+        [InlineData("-ConnectToServer")]
+        public static void TestRunspacePipeNameLength(string parameter)
+        {
+            int limit = CommandLineParameterParser.GetRunspacePipeNameLimit();
+            var valid = new CommandLineParameterParser();
+            valid.Parse(new[] { parameter, new string('a', limit) });
+            Assert.False(valid.AbortStartup);
+
+            var invalid = new CommandLineParameterParser();
+            invalid.Parse(new[] { parameter, new string('a', limit + 1) });
+            Assert.True(invalid.AbortStartup);
+            Assert.Equal(CommandLineParameterParserStrings.InvalidRunspacePipeName, invalid.ErrorMessage);
+
+            if (!Platform.IsWindows)
+            {
+                var unicode = new CommandLineParameterParser();
+                unicode.Parse(new[] { parameter, new string('\u00e9', (limit / 2) + 1) });
+                Assert.True(unicode.AbortStartup);
+                Assert.Equal(CommandLineParameterParserStrings.InvalidRunspacePipeName, unicode.ErrorMessage);
+            }
+        }
+
         [Fact]
         public static void TestDefaults()
         {
@@ -26,6 +110,8 @@ namespace PSTests.Parallel
             Assert.Null(cpp.ConfigurationName);
             Assert.Null(cpp.ConfigurationFile);
             Assert.Null(cpp.CustomPipeName);
+            Assert.Null(cpp.RunspaceServer);
+            Assert.Null(cpp.ConnectToServer);
             Assert.Null(cpp.ErrorMessage);
             Assert.Null(cpp.ExecutionPolicy);
             Assert.Equal((uint)ConsoleHost.ExitCodeSuccess, cpp.ExitCode);
