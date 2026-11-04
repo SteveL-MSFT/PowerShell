@@ -177,6 +177,7 @@ namespace Microsoft.PowerShell
             "command",
             "commandwithargs",
             "configurationname",
+            "connecttoserver",
             "custompipename",
             "encodedcommand",
             "executionpolicy",
@@ -191,6 +192,7 @@ namespace Microsoft.PowerShell
             "noprofileloadtime",
             "outputformat",
             "removeworkingdirectorytrailingcharacter",
+            "runspaceserver",
             "settingsfile",
             "version",
             "windowstyle",
@@ -234,6 +236,8 @@ namespace Microsoft.PowerShell
             ConfigurationFile   = 0x0000000004000000, // -ConfigurationFile
             NoProfileLoadTime   = 0x0000000008000000, // -NoProfileLoadTime
             CommandWithArgs     = 0x0000000010000000, // -CommandWithArgs | -cwa
+            RunspaceServer      = 0x0000000020000000, // -RunspaceServer
+            ConnectToServer     = 0x0000000040000000, // -ConnectToServer
 
             // Enum values for specified ExecutionPolicy
             EPUnrestricted      = 0x0000000100000000, // ExecutionPolicy unrestricted
@@ -251,6 +255,10 @@ namespace Microsoft.PowerShell
 #pragma warning restore SA1025 // CodeMustNotContainMultipleWhitespaceInARow
 
         internal ParameterBitmap ParametersUsed = 0;
+
+        internal string? RunspaceServer { get; private set; }
+
+        internal string? ConnectToServer { get; private set; }
 
         internal double ParametersUsedAsDouble
         {
@@ -886,6 +894,39 @@ namespace Microsoft.PowerShell
             }
         }
 
+        internal static bool IsRunspaceClientCommandLine(string[] args)
+            => args.Length == 2 && string.Equals(GetPipeSwitchKey(args[0]), "connecttoserver", StringComparison.OrdinalIgnoreCase);
+
+        internal static int GetRunspacePipeNameLimit()
+        {
+            if (Platform.IsWindows)
+            {
+                return 256 - @"\\.\pipe\".Length;
+            }
+
+            int pathLimit = Platform.IsLinux ? MaxPipePathLengthLinux : MaxPipePathLengthMacOS;
+            // Unix socket paths include the runtime's prefix and a terminating null byte.
+            return pathLimit - Encoding.UTF8.GetByteCount(Path.GetTempPath()) - "CoreFxPipe_".Length - 1;
+        }
+
+        private static string GetPipeSwitchKey(string argument)
+        {
+            string key = argument?.Trim() ?? string.Empty;
+            if (key.Length == 0 || (!CharExtensions.IsDash(key[0]) && key[0] != '/'))
+            {
+                return string.Empty;
+            }
+
+            char prefix = key[0];
+            key = key.Substring(1);
+            if (key.Length > 0 && CharExtensions.IsDash(prefix) && key[0] == prefix)
+            {
+                key = key.Substring(1);
+            }
+
+            return key;
+        }
+
         private void ParseHelper(string[] args)
         {
             if (args.Length == 0)
@@ -893,6 +934,68 @@ namespace Microsoft.PowerShell
                 if (IsFileOnlyEntryEnabled)
                 {
                     SetCommandLineError(CommandLineParameterParserStrings.FileOnlyEntryRequired);
+                }
+
+                return;
+            }
+
+            // Validate these exclusive modes before switches such as -Version or -Command
+            // can stop parsing and hide a conflicting argument.
+            for (int i = 0; i < args.Length; i++)
+            {
+                string key = GetPipeSwitchKey(args[i]);
+                bool isServer = MatchSwitch(key, "runspaceserver", "runspaceserver");
+                if (!isServer && !MatchSwitch(key, "connecttoserver", "connecttoserver"))
+                {
+                    continue;
+                }
+
+                _showBanner = false;
+                _skipUserInit = true;
+                if (i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1])
+                    || CharExtensions.IsDash(args[i + 1][0]) || args[i + 1][0] == '/')
+                {
+                    SetCommandLineError(string.Format(
+                        CultureInfo.CurrentCulture,
+                        CommandLineParameterParserStrings.MissingMandatoryArgument,
+                        args[i]));
+                    return;
+                }
+
+                if (i != 0 || args.Length != 2)
+                {
+                    SetCommandLineError(CommandLineParameterParserStrings.RunspacePipeExclusiveArguments);
+                    return;
+                }
+
+                string pipeName = args[1];
+                int maxNameLength = GetRunspacePipeNameLimit();
+                if (pipeName.IndexOfAny(new[] { '/', '\\', ':', '\0' }) >= 0
+                    || (Platform.IsWindows ? pipeName.Length : Encoding.UTF8.GetByteCount(pipeName)) > maxNameLength
+                    || string.Equals(pipeName, "anonymous", StringComparison.OrdinalIgnoreCase))
+                {
+                    SetCommandLineError(CommandLineParameterParserStrings.InvalidRunspacePipeName);
+                    return;
+                }
+
+                if (IsFileOnlyEntryEnabled)
+                {
+                    SetCommandLineError(CommandLineParameterParserStrings.FileOnlyEntryServerMode);
+                    return;
+                }
+
+                if (isServer)
+                {
+                    RunspaceServer = pipeName;
+                    ParametersUsed |= ParameterBitmap.RunspaceServer;
+                    _explicitReadCommandsFromStdin = true;
+                    _noPrompt = true;
+                    _noExit = true;
+                }
+                else
+                {
+                    ConnectToServer = pipeName;
+                    ParametersUsed |= ParameterBitmap.ConnectToServer;
                 }
 
                 return;

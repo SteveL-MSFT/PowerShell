@@ -64,7 +64,10 @@ namespace Microsoft.PowerShell
             }
 #endif
             // Warm up some components concurrently on background threads.
-            EarlyStartup.Init();
+            if (!CommandLineParameterParser.IsRunspaceClientCommandLine(args))
+            {
+                EarlyStartup.Init();
+            }
 
             // Windows Vista and later support non-traditional UI fallback ie., a
             // user on an Arabic machine can choose either French or English(US) as
@@ -91,7 +94,10 @@ namespace Microsoft.PowerShell
                     ManagedEntranceStrings.ShellBannerPowerShell,
                     PSVersionInfo.GitCommitId);
 
-                ConsoleHost.DefaultInitialSessionState = InitialSessionState.CreateDefault2();
+                if (!ConsoleHost.IsRunspaceClient)
+                {
+                    ConsoleHost.DefaultInitialSessionState = InitialSessionState.CreateDefault2();
+                }
 
                 exitCode = ConsoleHost.Start(
                     bannerText: banner,

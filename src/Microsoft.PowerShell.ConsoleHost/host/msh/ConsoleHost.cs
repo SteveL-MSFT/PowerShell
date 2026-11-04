@@ -54,10 +54,15 @@ namespace Microsoft.PowerShell
         internal const int ExitCodeCtrlBreak = 128 + 21; // SIGBREAK
         internal const int ExitCodeInitFailure = 70; // Internal Software Error
         internal const int ExitCodeBadCommandLineParameter = 64; // Command Line Usage Error
+
 #if UNIX
         internal const string DECCKM_ON = "\x1b[?1h";
         internal const string DECCKM_OFF = "\x1b[?1l";
 #endif
+
+        internal static bool IsRunspaceServer => s_cpp.RunspaceServer != null;
+
+        internal static bool IsRunspaceClient => s_cpp.ConnectToServer != null;
 
         /// <summary>
         /// Internal Entry point in msh console host implementation.
@@ -118,6 +123,11 @@ namespace Microsoft.PowerShell
                 throw new ConsoleHostStartupException(ConsoleHostStrings.ShellCannotBeStartedWithConfigConflict);
             }
 
+            if (s_cpp.ConnectToServer != null)
+            {
+                return RunspacePipe.Connect(s_cpp.ConnectToServer);
+            }
+
             // Put pwsh executable home in front of PATH so that calling `pwsh` within `pwsh` always starts the same running version.
             string psExeHome = GetPSExecutableHome();
             string path = Environment.GetEnvironmentVariable("PATH");
@@ -173,6 +183,19 @@ namespace Microsoft.PowerShell
 
                 PSHostUserInterface hostUI = s_theConsoleHost?.UI ?? new NullHostUserInterface();
                 s_cpp.ShowErrorHelpBanner(hostUI, bannerText, helpText);
+
+                if (s_cpp.RunspaceServer != null)
+                {
+                    if (hostException != null)
+                    {
+                        throw hostException;
+                    }
+
+                    IsStdOutputRedirected = true;
+                    return RunspacePipe.RunServer(
+                        s_cpp.RunspaceServer,
+                        () => unchecked((int)s_theConsoleHost.Run(s_cpp, false)));
+                }
 
                 if (s_cpp.ShowVersion)
                 {
@@ -1485,7 +1508,7 @@ namespace Microsoft.PowerShell
         {
             get
             {
-                return !IsInteractive && ((OutputFormat != Serialization.DataFormat.Text) || Console.IsInputRedirected);
+                return !IsInteractive && (IsRunspaceServer || (OutputFormat != Serialization.DataFormat.Text) || Console.IsInputRedirected);
             }
         }
 
@@ -1499,7 +1522,7 @@ namespace Microsoft.PowerShell
                     new WrappedSerializer(
                         OutputFormat,
                         "Output",
-                        Console.IsOutputRedirected ? Console.Out : ConsoleTextWriter);
+                        IsRunspaceServer || Console.IsOutputRedirected ? Console.Out : ConsoleTextWriter);
 
                 return _outputSerializer;
             }
@@ -1513,7 +1536,7 @@ namespace Microsoft.PowerShell
                     new WrappedSerializer(
                         ErrorFormat,
                         "Error",
-                        Console.IsErrorRedirected ? Console.Error : ConsoleTextWriter);
+                        IsRunspaceServer || Console.IsErrorRedirected ? Console.Error : ConsoleTextWriter);
 
                 return _errorSerializer;
             }
@@ -2670,9 +2693,22 @@ namespace Microsoft.PowerShell
                                 ui.WriteLine();
                             }
 
+                            if (IsRunspaceServer && inBlockMode)
+                            {
+                                _exec.ExecuteCommandAsync(
+                                    inputBlock.ToString(),
+                                    out Exception parseException,
+                                    Executor.ExecutionOptions.AddOutputter);
+                                if (parseException != null)
+                                {
+                                    _parent.ReportExceptionFallback(parseException, null);
+                                    _parent.SetShouldExit(1);
+                                }
+                            }
+
                             inBlockMode = false;
 
-                            if (Console.IsInputRedirected)
+                            if (IsRunspaceServer || Console.IsInputRedirected)
                             {
                                 // null is also the result of reading stdin to EOF.
                                 _parent.ShouldEndSession = true;
@@ -2705,7 +2741,21 @@ namespace Microsoft.PowerShell
                                 s_tracer.WriteLine("adding line to block");
                                 inputBlock.Append('\n');
                                 inputBlock.Append(line);
-                                continue;
+                                if (IsRunspaceServer)
+                                {
+                                    string block = inputBlock.ToString();
+                                    Parser.ParseInput(block, out _, out ParseError[] parseErrors);
+                                    if (!Array.Exists(parseErrors, static error => error.IncompleteInput))
+                                    {
+                                        line = block;
+                                        inBlockMode = false;
+                                    }
+                                }
+
+                                if (inBlockMode)
+                                {
+                                    continue;
+                                }
                             }
                         }
 

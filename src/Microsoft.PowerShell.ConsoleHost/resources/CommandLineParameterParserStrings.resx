@@ -237,4 +237,10 @@ Valid formats are:
   <data name="FileOnlyEntryServerMode" xml:space="preserve">
     <value>Server mode is disallowed by policy.</value>
   </data>
+  <data name="RunspacePipeExclusiveArguments" xml:space="preserve">
+    <value>-RunspaceServer and -ConnectToServer must each be used alone with a required pipe name. No additional arguments are allowed.</value>
+  </data>
+  <data name="InvalidRunspacePipeName" xml:space="preserve">
+    <value>The runspace pipe name must be a valid local pipe name, without path separators, a colon, or a null character, and must fit within the platform's pipe path limit. The name 'anonymous' is reserved.</value>
+  </data>
 </root>

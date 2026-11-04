@@ -60,7 +60,7 @@ namespace Microsoft.PowerShell
 
             _parent = parent;
             _rawui = new ConsoleHostRawUserInterface(this);
-            SupportsVirtualTerminal = true;
+            SupportsVirtualTerminal = !ConsoleHost.IsRunspaceServer;
             _isInteractiveTestToolListening = false;
 
             // check if TERM env var is set
@@ -737,7 +737,7 @@ namespace Microsoft.PowerShell
                 }
             }
 
-            TextWriter writer = Console.IsOutputRedirected ? Console.Out : _parent.ConsoleTextWriter;
+            TextWriter writer = ConsoleHost.IsRunspaceServer || Console.IsOutputRedirected ? Console.Out : _parent.ConsoleTextWriter;
             value = GetOutputString(value, SupportsVirtualTerminal);
 
             if (_parent.IsRunningAsync)
@@ -814,6 +814,16 @@ namespace Microsoft.PowerShell
 
         private void Write(ConsoleColor foregroundColor, ConsoleColor backgroundColor, string value, bool newLine)
         {
+            if (ConsoleHost.IsRunspaceServer)
+            {
+                lock (_instanceLock)
+                {
+                    WriteImpl(value, newLine);
+                }
+
+                return;
+            }
+
             // Sync access so that we don't conflict on color settings if called from multiple threads.
             lock (_instanceLock)
             {
@@ -1349,7 +1359,7 @@ namespace Microsoft.PowerShell
                 obj.Properties.Add(new PSNoteProperty("Record", record));
                 _parent.ErrorSerializer.Serialize(obj, "progress");
             }
-            else if (Console.IsOutputRedirected)
+            else if (ConsoleHost.IsRunspaceServer || Console.IsOutputRedirected)
             {
                 // Do not write progress bar when the stdout is redirected.
                 return;
@@ -1371,7 +1381,7 @@ namespace Microsoft.PowerShell
                 return;
             }
 
-            TextWriter writer = (!Console.IsErrorRedirected || _parent.IsInteractive)
+            TextWriter writer = !ConsoleHost.IsRunspaceServer && (!Console.IsErrorRedirected || _parent.IsInteractive)
                 ? _parent.ConsoleTextWriter
                 : Console.Error;
 
