@@ -74,6 +74,17 @@ with the same runtime and configuration. Compare each scenario against its own
 baseline; the enumeration scenario is a control, not a subtractable pipeline cost.
 Measure first-row latency separately when changing formatter buffering.
 
+### Parameter binding benchmarks
+
+Filter on `*ParameterLookup*` to measure exact names, case-insensitive names,
+aliases, a unique prefix, and a missing name against 32 declared parameters.
+The benchmark uses read-only metadata, as command binding normally does,
+and reports managed allocations with `MemoryDiagnoser`.
+Compare both exact hits and fallback paths when changing name resolution.
+These are lookup-only measurements, not whole-command speedups; also measure
+script and compiled-cmdlet invocations, including heterogeneous pipeline input,
+when evaluating end-to-end binding improvements.
+
 ### Regression Detection
 
 We use the tool [`ResultsComparer`](../dotnet-tools/ResultsComparer) to compare the provided benchmark results.
