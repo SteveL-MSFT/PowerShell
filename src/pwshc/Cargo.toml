@@ -1,0 +1,12 @@
+[package]
+name = "pwshc"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Standalone client for a PowerShell runspace server"
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "net", "time", "io-util"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
